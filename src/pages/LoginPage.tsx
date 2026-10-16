@@ -7,11 +7,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Building2,
-  User,
-  ShieldAlert,
   Clock,
-  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 
@@ -68,97 +64,25 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const fillDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setError(null);
-    setNotice(null);
-  };
-
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-[#FAF6F0] flex flex-col justify-center">
-      <div className="max-w-md w-full mx-auto space-y-8">
-        {/* Brand Header */}
+    <div className="min-h-screen bg-[#FAF6F0] py-12 px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
+      <div className="max-w-md w-full mx-auto space-y-6">
+        {/* Header */}
         <div className="text-center space-y-2">
-          <Link to="/" className="inline-flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-full bg-terracotta-500/10 flex items-center justify-center text-terracotta-600 group-hover:scale-105 transition-transform">
-              <Flame className="w-6 h-6 fill-terracotta-500 text-terracotta-600" />
+          <Link to="/" className="inline-flex items-center gap-2 group mb-2">
+            <div className="w-10 h-10 rounded-2xl bg-[#2B170E] text-amber-500 flex items-center justify-center shadow-md">
+              <Flame className="w-6 h-6" />
             </div>
-            <div className="text-left">
-              <span className="font-serif text-2xl font-extrabold tracking-tight text-[#3A1E0E] block leading-none">
-                Firedup
-              </span>
-              <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-terracotta-600">
-                Specialty Coffee
-              </span>
-            </div>
+            <span className="font-serif text-2xl font-bold tracking-tight text-[#2B170E]">
+              FIREDUP <span className="text-terracotta-600 font-sans text-xs uppercase tracking-widest font-black">Coffee</span>
+            </span>
           </Link>
-          <h1 className="text-2xl font-serif font-bold text-[#2B170E] pt-2">
+          <h1 className="font-serif text-2xl font-bold text-[#3A1E0E]">
             Sign In to Your Account
           </h1>
-          <p className="text-xs text-[#8A5934]">
-            Unified authentication portal for Retail Customers, Wholesale Partners & Staff
+          <p className="text-xs text-[#6E4022]">
+            Access your customer dashboard, wholesale orders, or admin command.
           </p>
-        </div>
-
-        {/* Demo Fast-Switch Pills */}
-        <div className="p-4 rounded-3xl bg-[#F5ECE1]/70 border border-[#EBDCCE] space-y-2.5">
-          <div className="flex items-center justify-between text-xs font-bold text-[#532D16]">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-terracotta-500" />
-              Demo Role Quick-Switch
-            </span>
-            <span className="text-[10px] text-[#8A5934] font-normal">Click to prefill</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('sarah@example.com')}
-              className="p-2 rounded-xl bg-white/80 hover:bg-white text-left border border-[#EBDCCE] transition-colors flex items-center gap-2 text-[#3A1E0E]"
-            >
-              <User className="w-3.5 h-3.5 text-terracotta-600 flex-shrink-0" />
-              <div className="truncate">
-                <div className="font-bold truncate">Customer</div>
-                <div className="text-[9px] text-[#8A5934] truncate">sarah@example.com</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('orders@artisanroasters.com')}
-              className="p-2 rounded-xl bg-white/80 hover:bg-white text-left border border-[#EBDCCE] transition-colors flex items-center gap-2 text-[#3A1E0E]"
-            >
-              <Building2 className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
-              <div className="truncate">
-                <div className="font-bold truncate">Wholesale (Active)</div>
-                <div className="text-[9px] text-[#8A5934] truncate">35% Tier Unlocked</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('cafe@highlandbrew.com')}
-              className="p-2 rounded-xl bg-white/80 hover:bg-white text-left border border-[#EBDCCE] transition-colors flex items-center gap-2 text-[#3A1E0E]"
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-              <div className="truncate">
-                <div className="font-bold truncate">Wholesale (Pending)</div>
-                <div className="text-[9px] text-[#8A5934] truncate">Awaiting Approval</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('admin@firedupcoffee.com')}
-              className="p-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-left border border-stone-800 transition-colors flex items-center gap-2 text-white"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-              <div className="truncate">
-                <div className="font-bold truncate">Admin Staff</div>
-                <div className="text-[9px] text-stone-300 truncate">Operations Access</div>
-              </div>
-            </button>
-          </div>
         </div>
 
         {/* Login Form Container */}

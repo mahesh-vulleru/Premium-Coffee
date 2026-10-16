@@ -25,7 +25,7 @@ interface AdminFormState {
 
 export const AdminRegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { registerAdmin, activeInvitationTokens } = useAuth();
+  const { registerAdmin } = useAuth();
 
   const [formData, setFormData] = useState<AdminFormState>({
     name: '',
@@ -98,19 +98,6 @@ export const AdminRegisterPage: React.FC = () => {
     }
   };
 
-  const handleUseDemoToken = () => {
-    if (activeInvitationTokens.length > 0) {
-      setFormData((prev) => ({
-        ...prev,
-        invitationToken: activeInvitationTokens[0],
-      }));
-      setErrors((prev) => {
-        const copy = { ...prev };
-        delete copy.invitationToken;
-        return copy;
-      });
-    }
-  };
 
   if (success) {
     return (
@@ -174,13 +161,9 @@ export const AdminRegisterPage: React.FC = () => {
               <KeyRound className="w-3.5 h-3.5" />
               <span>Token Verification: Mandatory</span>
             </div>
-            <button
-              type="button"
-              onClick={handleUseDemoToken}
-              className="text-[11px] text-amber-400 hover:text-amber-300 underline font-medium"
-            >
-              Fill Demo Staff Token (FIREDUP-ADMIN-SECURE-2026)
-            </button>
+            <span className="text-[11px] text-stone-400">
+              Tokens provisioned securely via staff operations
+            </span>
           </div>
         </div>
 

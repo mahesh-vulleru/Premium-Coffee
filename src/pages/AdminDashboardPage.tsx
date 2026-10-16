@@ -397,7 +397,7 @@ export const AdminDashboardPage: React.FC = () => {
                 Staff Invitation Token Security Policy
               </h3>
               <p className="text-xs text-stone-400 leading-relaxed">
-                Active pre-authorized token for testing: <code className="px-2 py-0.5 rounded bg-stone-900 text-amber-300 font-mono text-xs">{activeInvitationTokens[0]}</code>. In production environments, tokens are single-use cryptographically signed JWTs with strict 24-hour expiration stored in an encrypted Redis key-value store.
+                Active pre-authorized token for testing: <code className="px-2 py-0.5 rounded bg-stone-900 text-amber-300 font-mono text-xs">{activeInvitationTokens[0] || 'Managed via Server Secret / DB Tokens'}</code>. In production environments, tokens are single-use cryptographically signed JWTs with strict 24-hour expiration stored in an encrypted Redis key-value store.
               </p>
             </div>
           </div>
