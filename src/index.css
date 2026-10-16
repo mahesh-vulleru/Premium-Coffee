@@ -12,6 +12,12 @@
   h1, h2, h3, h4, .font-serif {
     font-family: 'Playfair Display', Georgia, serif;
   }
+
+  /* Accessible focus visible outlines */
+  :focus-visible {
+    outline: 2px solid #BC5121;
+    outline-offset: 2px;
+  }
 }
 
 /* Custom scrollbars */
@@ -52,4 +58,23 @@
 
 .animate-float {
   animation: floatSlow 4s ease-in-out infinite;
+}
+
+/* Respect user's reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-float,
+  .animate-steam,
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, Clock, ShoppingBag } from 'lucide-react';
 import { BEST_DEAL_CAROUSEL_PRODUCTS } from '../data/coffeeData';
 import { useCart } from '../context/CartContext';
+import { handleImageError } from '../utils/imageFallback';
 
 export const DealsGrid: React.FC = () => {
   const { addToCart } = useCart();
@@ -80,6 +81,7 @@ export const DealsGrid: React.FC = () => {
               <img
                 src="/images/delivery-spoon.jpg"
                 alt="Coffee beans on wooden spoon"
+                onError={handleImageError}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
@@ -189,6 +191,7 @@ export const DealsGrid: React.FC = () => {
               <img
                 src="/images/special-offer-pouch.jpg"
                 alt="Firedup specialty pouch"
+                onError={handleImageError}
                 className="w-full h-full object-contain filter drop-shadow-2xl"
               />
             </div>
@@ -251,6 +254,7 @@ export const DealsGrid: React.FC = () => {
                       <img
                         src={prod.image}
                         alt={prod.name}
+                        onError={handleImageError}
                         className="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform"
                       />
                     </div>
@@ -266,11 +270,11 @@ export const DealsGrid: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => addToCart(prod)}
+                      onClick={() => addToCart(prod, 1, 'Whole Bean', '250g')}
                       className="w-full py-1.5 px-2 rounded-lg bg-[#2B170E] hover:bg-terracotta-600 text-white text-[11px] font-bold transition-colors flex items-center justify-center gap-1 mt-1"
                     >
                       <ShoppingBag className="w-3 h-3" />
-                      <span>Add</span>
+                      <span>Add (250g)</span>
                     </button>
                   </div>
                 );

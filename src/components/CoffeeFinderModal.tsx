@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { X, Sparkles, Check, ArrowRight, RotateCcw, ShoppingBag } from 'lucide-react';
 import { COFFEE_PRODUCTS } from '../data/coffeeData';
 import type { CoffeeProduct } from '../types/coffee';
 import { useCart } from '../context/CartContext';
+import { calculateProductPrice, formatCurrency } from '../utils/pricing';
+import { handleImageError } from '../utils/imageFallback';
 
 interface CoffeeFinderModalProps {
   isOpen: boolean;
@@ -16,23 +18,48 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
   const [roastPref, setRoastPref] = useState<string>('Dark');
   const [flavorPref, setFlavorPref] = useState<string>('chocolate');
   const [matchedProduct, setMatchedProduct] = useState<CoffeeProduct | null>(null);
+  const [matchReason, setMatchReason] = useState<string>('');
+
+  const titleId = useId();
+
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   const handleCalculateMatch = () => {
-    // Find best match based on roast level, brew method, or flavor
+    // 1. Precise match (roast + category/notes)
     let match = COFFEE_PRODUCTS.find(
-      (p) => p.roastLevel === roastPref && (p.category === brewMethod || p.description.toLowerCase().includes(flavorPref))
+      (p) =>
+        p.roastLevel === roastPref &&
+        (p.category === brewMethod ||
+          p.tastingNotes.some((n) => n.toLowerCase().includes(flavorPref)) ||
+          p.description.toLowerCase().includes(flavorPref))
     );
+
+    let reason = `Exact match for ${roastPref} roast and ${flavorPref} notes brewed as ${brewMethod.replace('_', ' ')}.`;
 
     if (!match) {
       match = COFFEE_PRODUCTS.find((p) => p.roastLevel === roastPref);
+      reason = `Selected for your preferred ${roastPref} roast profile with versatile brewing qualities.`;
     }
+
     if (!match) {
       match = COFFEE_PRODUCTS[0];
+      reason = 'Our most balanced crowd-favorite artisan roast.';
     }
 
     setMatchedProduct(match);
+    setMatchReason(reason);
     setStep(4);
   };
 
@@ -42,17 +69,27 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
     setRoastPref('Dark');
     setFlavorPref('chocolate');
     setMatchedProduct(null);
+    setMatchReason('');
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#140A04]/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#FAF6F0] rounded-3xl max-w-lg w-full border border-[#EBDCCE] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-        
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="fixed inset-0 z-50 bg-[#140A04]/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+    >
+      {/* Clickable Backdrop */}
+      <div onClick={onClose} className="fixed inset-0" aria-hidden="true" />
+
+      <div className="bg-[#FAF6F0] rounded-3xl max-w-lg w-full border border-[#EBDCCE] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 z-10">
         {/* Header */}
         <div className="bg-[#2B170E] text-white p-6 relative">
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-5 right-5 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#D5BC9F] transition-colors"
+            aria-label="Close quiz"
+            className="absolute top-5 right-5 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#D5BC9F] transition-colors focus-visible:ring-2 focus-visible:ring-terracotta-500"
           >
             <X className="w-5 h-5" />
           </button>
@@ -66,7 +103,7 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
             </span>
           </div>
 
-          <h3 className="font-serif text-2xl font-bold text-[#F5ECE1]">
+          <h3 id={titleId} className="font-serif text-2xl font-bold text-[#F5ECE1]">
             Find Your Signature Roast
           </h3>
           <p className="text-xs text-[#D5BC9F] mt-1">
@@ -99,10 +136,10 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
 
               <div className="grid grid-cols-2 gap-3 pt-2">
                 {[
-                  { id: 'espresso', label: 'Espresso Machine / Moka Pot', desc: 'Thick crema & intense shots' },
+                  { id: 'espresso', label: 'Espresso / Moka Pot', desc: 'Thick crema & intense shots' },
                   { id: 'latte', label: 'Milk Drinks & Lattes', desc: 'Smooth, cuts through milk' },
-                  { id: 'americano', label: 'Drip / French Press / Pour Over', desc: 'Clean, balanced, aromatic' },
-                  { id: 'cold_brew', label: 'Cold Brew & Iced Coffee', desc: 'Low acid, naturally sweet' },
+                  { id: 'americano', label: 'Drip / Pour Over / French Press', desc: 'Clean, balanced, aromatic' },
+                  { id: 'cold_brew', label: 'Cold Brew & Iced', desc: 'Low acid, naturally sweet' },
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -204,9 +241,9 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
               <div className="grid grid-cols-2 gap-3 pt-2">
                 {[
                   { id: 'chocolate', title: 'Dark Cacao & Molasses', desc: 'Rich, bittersweet, comforting' },
-                  { id: 'vanilla', title: 'Vanilla & Caramelized Sugar', desc: 'Silky, aromatic, sweet notes' },
-                  { id: 'hazelnut', title: 'Toasted Hazelnut & Praline', desc: 'Nutty, buttery dessert tone' },
-                  { id: 'citrus', title: 'Floral Jasmine & Fruit Blossom', desc: 'Vibrant, bright, refreshing' },
+                  { id: 'vanilla', title: 'Vanilla & Sweet Cream', desc: 'Silky, aromatic, sweet notes' },
+                  { id: 'hazelnut', title: 'Roasted Hazelnut & Praline', desc: 'Nutty, buttery dessert tone' },
+                  { id: 'citrus', title: 'Citrus & Honey Blossom', desc: 'Vibrant, bright, refreshing' },
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -248,17 +285,22 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
           )}
 
           {step === 4 && matchedProduct && (
-            <div className="space-y-5 text-center">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 text-xs font-bold">
+            <div className="space-y-4 text-center">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-800 text-xs font-bold">
                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>99% Taste Compatibility Match</span>
+                <span>Top Match for Your Preferences</span>
               </div>
+
+              <p className="text-xs text-[#6E4022] bg-[#F5ECE1] rounded-xl p-2.5 border border-[#EBDCCE]">
+                <strong>Why this match:</strong> {matchReason}
+              </p>
 
               <div className="p-4 rounded-2xl bg-white border border-[#EBDCCE] shadow-soft flex items-center gap-4 text-left">
                 <div className="w-24 h-24 rounded-xl overflow-hidden bg-[#FAF6F0] flex-shrink-0">
                   <img
                     src={matchedProduct.image}
                     alt={matchedProduct.name}
+                    onError={handleImageError}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -274,7 +316,9 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
                     {matchedProduct.description}
                   </p>
                   <div className="flex items-center gap-2 pt-1">
-                    <span className="font-black text-sm text-[#2B170E]">${matchedProduct.price}</span>
+                    <span className="font-black text-sm text-[#2B170E]">
+                      {formatCurrency(calculateProductPrice(matchedProduct.price, '250g'))} (250g)
+                    </span>
                     <span className="text-[11px] text-[#8A5934]">
                       ★ {matchedProduct.rating} ({matchedProduct.reviewsCount} reviews)
                     </span>
@@ -283,7 +327,7 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={handleReset}
@@ -302,13 +346,14 @@ export const CoffeeFinderModal: React.FC<CoffeeFinderModalProps> = ({ isOpen, on
                   className="flex-1 py-2.5 px-4 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-glow"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  <span>Add Match to Cart (${matchedProduct.price})</span>
+                  <span>
+                    Add to Cart • {formatCurrency(calculateProductPrice(matchedProduct.price, '250g'))}
+                  </span>
                 </button>
               </div>
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

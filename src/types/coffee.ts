@@ -18,10 +18,14 @@ export interface CoffeeProduct {
   stockAvailable: number;
 }
 
+export type GrindOption = 'Whole Bean' | 'French Press' | 'Pour Over' | 'Espresso' | 'Cold Brew';
+export type BagSize = '250g' | '500g' | '1kg';
+export type SubscriptionFrequency = '2_weeks' | '3_weeks' | '4_weeks';
+
 export interface CartItem {
   product: CoffeeProduct;
   quantity: number;
-  grind: 'Whole Bean' | 'French Press' | 'Pour Over' | 'Espresso' | 'Cold Brew';
-  size: '250g' | '500g' | '1kg';
+  grind: GrindOption;
+  size: BagSize;
+  frequency?: SubscriptionFrequency;
 }
-

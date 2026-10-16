@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, Sparkles, Coffee, Star, Flame } from 'lucide-react';
+import { handleImageError } from '../utils/imageFallback';
 
 interface HeroSlide {
   title: string;
@@ -124,15 +126,15 @@ export const Hero: React.FC = () => {
 
             {/* Action Buttons: Discover Coffee & Carousel Navigation */}
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
-              <a
-                href="#best-sellers"
+              <Link
+                to="/shop"
                 className="inline-flex items-center gap-4 pl-7 pr-2.5 py-2.5 sm:py-3 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-sm sm:text-base shadow-glow hover:shadow-elevated transition-all duration-300 transform hover:-translate-y-0.5 group"
               >
                 <span className="tracking-wide">Discover Coffee</span>
                 <span className="w-10 h-10 rounded-full bg-[#2B170E] flex items-center justify-center text-white shadow-md group-hover:translate-x-1.5 transition-transform duration-300">
                   <ArrowRight className="w-4 h-4 text-white" />
                 </span>
-              </a>
+              </Link>
 
               {/* Slider Dots & Arrow Navigation */}
               <div className="flex items-center gap-3 sm:pl-2">
@@ -201,6 +203,7 @@ export const Hero: React.FC = () => {
                 key={slide.heroImage}
                 src={slide.heroImage}
                 alt="Premium roasted coffee and vibrant splash"
+                onError={handleImageError}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-95 contrast-105"
               />
 
@@ -214,6 +217,7 @@ export const Hero: React.FC = () => {
                     key={slide.pouchImage}
                     src={slide.pouchImage}
                     alt={slide.pouchName}
+                    onError={handleImageError}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-amber-400 text-[#211007] text-[9px] font-black tracking-wider uppercase shadow-sm">

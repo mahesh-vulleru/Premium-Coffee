@@ -1,14 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Leaf, ShieldCheck, HeartHandshake, X } from 'lucide-react';
+import { handleImageError } from '../utils/imageFallback';
 
 export const CraftedWithPurpose: React.FC = () => {
   const [showSustainabilityModal, setShowSustainabilityModal] = useState(false);
+
+  // Escape key handler
+  useEffect(() => {
+    if (!showSustainabilityModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSustainabilityModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSustainabilityModal]);
 
   return (
     <section className="py-20 bg-[#FAF6F0] relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-          
           {/* Left Column: Heading, Text & Shop CTA */}
           <div className="lg:col-span-5 space-y-6">
             <h2 className="font-serif text-3xl sm:text-4xl font-extrabold text-[#3A1E0E] tracking-tight leading-tight">
@@ -33,15 +45,15 @@ export const CraftedWithPurpose: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Sustainable Trade Sourcing Card (matching screenshot) */}
+          {/* Right Column: Sustainable Trade Sourcing Card */}
           <div className="lg:col-span-7">
             <div className="relative rounded-3xl overflow-hidden shadow-elevated border border-[#532D16] bg-[#1E100A] text-white p-8 sm:p-10 flex flex-col justify-between min-h-[340px] group">
-              
               {/* Lush farm background */}
               <div className="absolute inset-0 z-0">
                 <img
                   src="/images/sustainable-farm.jpg"
                   alt="Sustainable coffee farm with ripe cherries"
+                  onError={handleImageError}
                   className="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700 filter brightness-75"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#140A04] via-[#1E100A]/60 to-transparent" />
@@ -78,17 +90,22 @@ export const CraftedWithPurpose: React.FC = () => {
                   </span>
                 </button>
               </div>
-
             </div>
           </div>
-
         </div>
       </div>
 
       {/* Sustainable Sourcing Modal */}
       {showSustainabilityModal && (
-        <div className="fixed inset-0 z-50 bg-[#140A04]/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-[#EBDCCE] space-y-5 animate-in fade-in zoom-in-95">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-[#140A04]/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+        >
+          {/* Backdrop Click */}
+          <div onClick={() => setShowSustainabilityModal(false)} className="fixed inset-0" aria-hidden="true" />
+
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-[#EBDCCE] space-y-5 animate-in fade-in zoom-in-95 relative z-10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -104,7 +121,8 @@ export const CraftedWithPurpose: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowSustainabilityModal(false)}
-                className="text-[#8A5934] hover:text-[#3A1E0E]"
+                aria-label="Close dialog"
+                className="text-[#8A5934] hover:text-[#3A1E0E] p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -143,4 +161,3 @@ export const CraftedWithPurpose: React.FC = () => {
     </section>
   );
 };
-

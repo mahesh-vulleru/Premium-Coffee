@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, Sparkles, Award, ShieldCheck, DollarSign } from 'lucide-react';
+import { handleImageError } from '../utils/imageFallback';
 
 export const BeanToBrewStory: React.FC = () => {
   const [openSection, setOpenSection] = useState<'mission' | 'goal' | 'roasting'>('goal');
@@ -27,6 +28,7 @@ export const BeanToBrewStory: React.FC = () => {
               <img
                 src="/images/lifestyle-woman-coffee.jpg"
                 alt="Woman savoring warm cup of Firedup coffee"
+                onError={handleImageError}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#2B170E]/60 via-transparent to-transparent" />

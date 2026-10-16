@@ -1,44 +1,85 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { CoffeeProduct, CartItem } from '../types/coffee';
+/* oxlint-disable react/only-export-components */
+import React, { useState, useEffect, useMemo } from 'react';
+import type { CoffeeProduct, CartItem, GrindOption, BagSize, SubscriptionFrequency } from '../types/coffee';
+import { COFFEE_PRODUCTS, SUBSCRIPTION_FEATURED_PRODUCT } from '../data/coffeeData';
+import { calculateCartSummary } from '../utils/pricing';
+import { CartContext } from './useCart';
+export type { ToastState, CartContextType } from './useCart';
+export { useCart } from './useCart';
 
-interface CartContextType {
-  cart: CartItem[];
-  addToCart: (product: CoffeeProduct, quantity?: number, grind?: CartItem['grind'], size?: CartItem['size']) => void;
-  removeFromCart: (productId: string, grind: string, size: string) => void;
-  updateQuantity: (productId: string, grind: string, size: string, delta: number) => void;
-  clearCart: () => void;
-  cartTotal: number;
-  cartCount: number;
+const CART_STORAGE_KEY = 'firedup_cart';
+const WISHLIST_STORAGE_KEY = 'firedup_wishlist';
 
-  // Wishlist
-  wishlist: CoffeeProduct[];
-  toggleWishlist: (product: CoffeeProduct) => void;
-  isInWishlist: (productId: string) => boolean;
+function sanitizeLoadedCart(raw: unknown): CartItem[] {
+  if (!Array.isArray(raw)) return [];
+  const validGrinds: GrindOption[] = ['Whole Bean', 'French Press', 'Pour Over', 'Espresso', 'Cold Brew'];
+  const validSizes: BagSize[] = ['250g', '500g', '1kg'];
+  const validFrequencies: SubscriptionFrequency[] = ['2_weeks', '3_weeks', '4_weeks'];
 
-  // UI state
-  isCartOpen: boolean;
-  setIsCartOpen: (open: boolean) => void;
-  isWishlistOpen: boolean;
-  setIsWishlistOpen: (open: boolean) => void;
-  quickViewProduct: CoffeeProduct | null;
-  setQuickViewProduct: (product: CoffeeProduct | null) => void;
+  const sanitized: CartItem[] = [];
 
-  // Selected Category
-  selectedCategory: string;
-  setSelectedCategory: (cat: string) => void;
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const candidate = item as Partial<CartItem> & { product?: Partial<CoffeeProduct> };
+    const prodId = candidate.product?.id;
+    if (!prodId || typeof prodId !== 'string') continue;
 
-  // Toast
-  toast: { message: string; type?: 'success' | 'info' } | null;
-  showToast: (message: string) => void;
+    const canonical =
+      COFFEE_PRODUCTS.find((p) => p.id === prodId) ||
+      (prodId === SUBSCRIPTION_FEATURED_PRODUCT.id ? SUBSCRIPTION_FEATURED_PRODUCT : null);
+
+    const product: CoffeeProduct | null =
+      canonical ||
+      (typeof candidate.product?.price === 'number' && candidate.product.name
+        ? (candidate.product as CoffeeProduct)
+        : null);
+
+    if (!product) continue;
+
+    const rawQty = Number(candidate.quantity);
+    const maxStock = product.stockAvailable > 0 ? product.stockAvailable : 10;
+    const quantity = Number.isInteger(rawQty) && rawQty > 0 ? Math.min(rawQty, maxStock) : 1;
+    const grind: GrindOption = candidate.grind && validGrinds.includes(candidate.grind) ? candidate.grind : 'Whole Bean';
+    const size: BagSize = candidate.size && validSizes.includes(candidate.size) ? candidate.size : '250g';
+    const frequency: SubscriptionFrequency | undefined =
+      candidate.frequency && validFrequencies.includes(candidate.frequency) ? candidate.frequency : undefined;
+
+    sanitized.push({
+      product,
+      quantity,
+      grind,
+      size,
+      frequency,
+    });
+  }
+
+  return sanitized;
 }
 
-const CartContext = createContext<CartContextType | undefined>(undefined);
+function sanitizeLoadedWishlist(raw: unknown): CoffeeProduct[] {
+  if (!Array.isArray(raw)) return [];
+  const sanitized: CoffeeProduct[] = [];
+
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const candidate = item as Partial<CoffeeProduct>;
+    const prodId = candidate.id;
+    if (!prodId || typeof prodId !== 'string') continue;
+
+    const canonical = COFFEE_PRODUCTS.find((p) => p.id === prodId);
+    if (canonical) {
+      sanitized.push(canonical);
+    }
+  }
+
+  return sanitized;
+}
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('firedup_cart');
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      return saved ? sanitizeLoadedCart(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -46,8 +87,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [wishlist, setWishlist] = useState<CoffeeProduct[]>(() => {
     try {
-      const saved = localStorage.getItem('firedup_wishlist');
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem(WISHLIST_STORAGE_KEY);
+      return saved ? sanitizeLoadedWishlist(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -57,54 +98,111 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<CoffeeProduct | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' | 'error' } | null>(null);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('firedup_cart', JSON.stringify(cart));
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch (err) {
+      console.warn('Unable to persist cart to localStorage', err);
+    }
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('firedup_wishlist', JSON.stringify(wishlist));
+    try {
+      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(wishlist));
+    } catch (err) {
+      console.warn('Unable to persist wishlist to localStorage', err);
+    }
   }, [wishlist]);
 
-  const showToast = (message: string) => {
-    setToast({ message });
-    setTimeout(() => {
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type });
+    const timer = setTimeout(() => {
       setToast(null);
     }, 3200);
+    return () => clearTimeout(timer);
   };
 
   const addToCart = (
     product: CoffeeProduct,
     quantity = 1,
-    grind: CartItem['grind'] = 'Whole Bean',
-    size: CartItem['size'] = '250g'
+    grind: GrindOption = 'Whole Bean',
+    size: BagSize = '250g',
+    frequency?: SubscriptionFrequency
   ) => {
+    const maxStock = product.stockAvailable > 0 ? product.stockAvailable : 10;
+    const validQty = Math.max(1, Math.min(quantity, maxStock));
+
     setCart((prev) => {
       const existingIndex = prev.findIndex(
-        (item) => item.product.id === product.id && item.grind === grind && item.size === size
+        (item) =>
+          item.product.id === product.id &&
+          item.grind === grind &&
+          item.size === size &&
+          item.frequency === frequency
       );
+
       if (existingIndex > -1) {
+        const existingItem = prev[existingIndex];
+        const newQty = existingItem.quantity + validQty;
+        if (newQty > maxStock) {
+          showToast(`Maximum available stock reached (${maxStock} bags) for "${product.name}"`, 'info');
+          const copy = [...prev];
+          copy[existingIndex].quantity = maxStock;
+          return copy;
+        }
         const copy = [...prev];
-        copy[existingIndex].quantity += quantity;
+        copy[existingIndex].quantity = newQty;
         return copy;
       }
-      return [...prev, { product, quantity, grind, size }];
+
+      return [...prev, { product, quantity: validQty, grind, size, frequency }];
     });
-    showToast(`Added ${quantity}x "${product.name}" to your cart`);
+
+    const frequencyLabel = frequency ? ` (${frequency.replace('_', ' ')})` : '';
+    showToast(`Added ${validQty}x "${product.name}" (${size}, ${grind}${frequencyLabel}) to cart`);
   };
 
-  const removeFromCart = (productId: string, grind: string, size: string) => {
-    setCart((prev) => prev.filter((item) => !(item.product.id === productId && item.grind === grind && item.size === size)));
+  const removeFromCart = (productId: string, grind: string, size: string, frequency?: string) => {
+    setCart((prev) =>
+      prev.filter(
+        (item) =>
+          !(
+            item.product.id === productId &&
+            item.grind === grind &&
+            item.size === size &&
+            item.frequency === frequency
+          )
+      )
+    );
   };
 
-  const updateQuantity = (productId: string, grind: string, size: string, delta: number) => {
+  const updateQuantity = (
+    productId: string,
+    grind: string,
+    size: string,
+    delta: number,
+    frequency?: string
+  ) => {
     setCart((prev) => {
       return prev
         .map((item) => {
-          if (item.product.id === productId && item.grind === grind && item.size === size) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          if (
+            item.product.id === productId &&
+            item.grind === grind &&
+            item.size === size &&
+            item.frequency === frequency
+          ) {
+            const nextQty = item.quantity + delta;
+            if (nextQty <= 0) return null;
+            const maxStock = item.product.stockAvailable > 0 ? item.product.stockAvailable : 10;
+            if (nextQty > maxStock) {
+              showToast(`Only ${maxStock} bags available in stock`, 'info');
+              return { ...item, quantity: maxStock };
+            }
+            return { ...item, quantity: nextQty };
           }
           return item;
         })
@@ -114,23 +212,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => setCart([]);
 
-  const cartTotal = cart.reduce((sum, item) => {
-    let multiplier = 1;
-    if (item.size === '500g') multiplier = 1.85;
-    if (item.size === '1kg') multiplier = 3.4;
-    return sum + item.product.price * multiplier * item.quantity;
-  }, 0);
-
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const { subtotal } = useMemo(() => calculateCartSummary(cart, 0), [cart]);
+  const cartTotal = subtotal;
+  const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   const toggleWishlist = (product: CoffeeProduct) => {
     setWishlist((prev) => {
       const exists = prev.some((p) => p.id === product.id);
       if (exists) {
-        showToast(`Removed "${product.name}" from wishlist`);
+        showToast(`Removed "${product.name}" from wishlist`, 'info');
         return prev.filter((p) => p.id !== product.id);
       }
-      showToast(`Saved "${product.name}" to wishlist`);
+      showToast(`Saved "${product.name}" to wishlist`, 'success');
       return [...prev, product];
     });
   };
@@ -160,15 +253,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSelectedCategory,
         toast,
         showToast,
+        isAccountModalOpen,
+        setIsAccountModalOpen,
       }}
     >
       {children}
     </CartContext.Provider>
   );
-};
-
-export const useCart = () => {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error('useCart must be used inside CartProvider');
-  return ctx;
 };

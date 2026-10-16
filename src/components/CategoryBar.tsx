@@ -1,9 +1,10 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
 const CATEGORIES = [
   { id: 'cappuccino', label: 'Cappuccino' },
-  { id: 'espresso', label: 'Expresso' },
+  { id: 'espresso', label: 'Espresso' },
   { id: 'moca', label: 'Moca' },
   { id: 'latte', label: 'Latte' },
   { id: 'americano', label: 'Americano' },
@@ -11,13 +12,18 @@ const CATEGORIES = [
 ];
 
 export const CategoryBar: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { selectedCategory, setSelectedCategory } = useCart();
 
   const handleSelect = (catId: string) => {
-    setSelectedCategory(selectedCategory === catId ? 'all' : catId);
-    const target = document.getElementById('best-sellers');
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth' });
+    const nextCategory = selectedCategory === catId ? 'all' : catId;
+    setSelectedCategory(nextCategory);
+
+    if (location.pathname !== '/shop') {
+      navigate(`/shop?category=${nextCategory}`);
+    } else {
+      window.scrollTo({ top: 320, behavior: 'smooth' });
     }
   };
 
@@ -56,4 +62,3 @@ export const CategoryBar: React.FC = () => {
     </div>
   );
 };
-

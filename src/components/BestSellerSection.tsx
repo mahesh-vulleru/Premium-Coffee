@@ -22,6 +22,12 @@ import type { CoffeeProduct, CartItem } from '../types/coffee';
 import { useCart } from '../context/CartContext';
 import { CoffeeFinderModal } from './CoffeeFinderModal';
 import { CompareModal } from './CompareModal';
+import {
+  calculateProductPrice,
+  calculateOriginalProductPrice,
+  formatCurrency,
+} from '../utils/pricing';
+import { handleImageError } from '../utils/imageFallback';
 
 type FilterTab = 'all' | 'new_arrivals' | 'best_sellers' | 'top_rates' | 'sale';
 type RoastFilter = 'all' | 'Medium' | 'Medium-Dark' | 'Dark';
@@ -35,6 +41,7 @@ export const BestSellerSection: React.FC = () => {
     setQuickViewProduct,
     selectedCategory,
     setSelectedCategory,
+    showToast,
   } = useCart();
 
   // State management
@@ -55,40 +62,31 @@ export const BestSellerSection: React.FC = () => {
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
 
-  // Calculate pricing based on bag size
-  const getSizeMultiplier = (size: CartItem['size'] = '250g') => {
-    switch (size) {
-      case '500g':
-        return 1.8;
-      case '1kg':
-        return 3.2;
-      default:
-        return 1;
-    }
-  };
-
-  const calculateProductPrice = (basePrice: number, size: CartItem['size'] = '250g') => {
-    return Math.round(basePrice * getSizeMultiplier(size));
-  };
-
   // Compare toggling
   const toggleCompare = (product: CoffeeProduct) => {
     if (compareIds.includes(product.id)) {
       setCompareIds((prev) => prev.filter((id) => id !== product.id));
+      showToast(`Removed "${product.name}" from comparison`, 'info');
     } else {
       if (compareIds.length >= 3) {
-        alert('You can compare up to 3 roasts at a time.');
+        showToast('You can compare up to 3 roasts at a time.', 'info');
         return;
       }
       setCompareIds((prev) => [...prev, product.id]);
+      showToast(`Added "${product.name}" to comparison`);
     }
   };
 
   // Quantity updates
   const handleQuantityDelta = (productId: string, delta: number) => {
+    const product = COFFEE_PRODUCTS.find((p) => p.id === productId);
+    const maxStock = product && product.stockAvailable > 0 ? product.stockAvailable : 10;
     setQuantities((prev) => {
       const current = prev[productId] || 1;
-      const next = Math.max(1, Math.min(10, current + delta));
+      const next = Math.max(1, Math.min(maxStock, current + delta));
+      if (current + delta > maxStock && product) {
+        showToast(`Only ${maxStock} bags available for "${product.name}"`, 'info');
+      }
       return { ...prev, [productId]: next };
     });
   };
@@ -375,7 +373,7 @@ export const BestSellerSection: React.FC = () => {
             Showing <strong className="text-[#2B170E]">{processedProducts.length}</strong> of {COFFEE_PRODUCTS.length} artisan roasts
           </span>
           <span className="text-[#8A5934] font-medium">
-            🔥 Free shipping on orders over $50 • Roasted fresh weekly
+            🔥 Free shipping on orders over $75 • Roasted fresh weekly
           </span>
         </div>
 
@@ -408,6 +406,7 @@ export const BestSellerSection: React.FC = () => {
               const currentSize = selectedSizes[product.id] || '250g';
               const currentQty = quantities[product.id] || 1;
               const displayPrice = calculateProductPrice(product.price, currentSize);
+              const originalDisplayPrice = calculateOriginalProductPrice(product.originalPrice, currentSize);
               const isAdded = addedSuccessId === product.id;
 
               return (
@@ -419,7 +418,7 @@ export const BestSellerSection: React.FC = () => {
                   <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between pointer-events-none">
                     {product.isSale ? (
                       <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs">
-                        Sale -${product.originalPrice ? product.originalPrice - product.price : 25}
+                        Sale {originalDisplayPrice ? `-${formatCurrency(originalDisplayPrice - displayPrice)}` : ''}
                       </span>
                     ) : <span />}
 
@@ -435,6 +434,7 @@ export const BestSellerSection: React.FC = () => {
                     <img
                       src={product.image}
                       alt={product.name}
+                      onError={handleImageError}
                       className="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-500"
                     />
 
@@ -530,9 +530,9 @@ export const BestSellerSection: React.FC = () => {
                       <span className="font-extrabold text-sm sm:text-base text-[#3A1E0E]">
                         ${displayPrice}
                       </span>
-                      {product.originalPrice && currentSize === '250g' && (
+                      {originalDisplayPrice && (
                         <span className="text-xs text-[#AF8359] line-through">
-                          ${product.originalPrice}
+                          ${originalDisplayPrice}
                         </span>
                       )}
                     </div>
@@ -615,6 +615,7 @@ export const BestSellerSection: React.FC = () => {
               const currentGrind = selectedGrinds[product.id] || 'Whole Bean';
               const currentQty = quantities[product.id] || 1;
               const displayPrice = calculateProductPrice(product.price, currentSize);
+              const originalDisplayPrice = calculateOriginalProductPrice(product.originalPrice, currentSize);
               const isAdded = addedSuccessId === product.id;
 
               return (
@@ -628,6 +629,7 @@ export const BestSellerSection: React.FC = () => {
                       <img
                         src={product.image}
                         alt={product.name}
+                        onError={handleImageError}
                         className="w-full h-full object-cover"
                       />
                       {product.isSale && (
@@ -718,8 +720,8 @@ export const BestSellerSection: React.FC = () => {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <div className="font-extrabold text-xl text-[#2B170E]">${displayPrice}</div>
-                        {product.originalPrice && currentSize === '250g' && (
-                          <div className="text-xs text-[#AF8359] line-through">${product.originalPrice}</div>
+                        {originalDisplayPrice && (
+                          <div className="text-xs text-[#AF8359] line-through">${originalDisplayPrice}</div>
                         )}
                       </div>
 
