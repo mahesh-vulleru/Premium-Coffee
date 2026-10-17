@@ -20,7 +20,7 @@ export const WholesaleDashboardPage: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { showToast } = useCart();
 
-  if (!currentUser || (currentUser.role !== 'wholesale' && currentUser.role !== 'admin')) {
+  if (!currentUser || currentUser.role !== 'wholesale') {
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4 py-16 bg-[#FAF6F0]">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-[#EBDCCE] shadow-soft text-center space-y-4">
@@ -52,17 +52,49 @@ export const WholesaleDashboardPage: React.FC = () => {
     );
   }
 
-  const details = currentUser.wholesaleDetails;
-  const isApproved = details?.status === 'approved';
-
-  const handleDownloadPriceSheet = () => {
-    showToast('Demo: Commercial Wholesale 2026 Price Sheet PDF generated');
-  };
-
   const handleLogout = () => {
     logout();
     showToast('Signed out of wholesale session', 'info');
     navigate('/login');
+  };
+
+  const details = currentUser.wholesaleDetails;
+  const isApproved = details?.status === 'approved';
+
+  // Pending and rejected applicants can review their application status but must
+  // not see wholesale ordering or pricing actions until approved by an admin.
+  if (!isApproved) {
+    const isRejected = details?.status === 'rejected';
+    return (
+      <div className="min-h-[75vh] bg-[#FAF6F0] px-4 py-16 flex items-center justify-center">
+        <div className="max-w-xl w-full rounded-3xl bg-white border border-[#EBDCCE] shadow-soft p-8 text-center space-y-5">
+          <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center ${isRejected ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
+            {isRejected ? <ShieldCheck className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
+          </div>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#8A5934]">Wholesale Partner Application</p>
+          <h1 className="font-serif text-2xl font-bold text-[#3A1E0E]">
+            {isRejected ? 'Application Not Approved' : 'Application Under Review'}
+          </h1>
+          <p className="text-sm text-[#6E4022]">
+            {isRejected
+              ? (details?.rejectionReason || 'Your wholesale application was not approved. Please contact the roastery team for more information.')
+              : 'Your application is awaiting administrator approval. Wholesale pricing and bulk ordering will become available after approval.'}
+          </p>
+          <div className="rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] p-4 text-left text-sm space-y-1">
+            <p><span className="font-semibold">Business:</span> {details?.businessName || 'Not provided'}</p>
+            <p><span className="font-semibold">Status:</span> {isRejected ? 'Rejected' : 'Pending review'}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link to="/shop" className="flex-1 rounded-xl bg-[#2B170E] text-white font-bold text-sm py-3">Browse Coffee</Link>
+            <button type="button" onClick={handleLogout} className="flex-1 rounded-xl border border-[#D5BC9F] text-[#3A1E0E] font-bold text-sm py-3">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const handleDownloadPriceSheet = () => {
+    showToast('Demo: Commercial Wholesale 2026 Price Sheet PDF generated');
   };
 
   return (
