@@ -10,6 +10,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import { getSafeInternalRedirect } from '../utils/authRedirect';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -53,8 +54,8 @@ export const LoginPage: React.FC = () => {
             navigate('/dashboard/wholesale');
           }
         } else {
-          // Regular customer: redirect back to intended page if returnUrl provided
-          const target = redirectParam && redirectParam.startsWith('/') ? redirectParam : '/dashboard/customer';
+          // Regular customer: redirect back to intended page if safe returnUrl provided
+          const target = getSafeInternalRedirect(redirectParam, '/dashboard/customer');
           navigate(target);
         }
       } else {

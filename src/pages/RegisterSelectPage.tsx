@@ -1,12 +1,14 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { User, Building2, ShieldCheck, ArrowRight, Sparkles, Check, KeyRound } from 'lucide-react';
+import { getSafeInternalRedirect } from '../utils/authRedirect';
 
 export const RegisterSelectPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const redirectParam = searchParams.get('redirect');
-  const customerRegisterUrl = redirectParam
-    ? `/register/customer?redirect=${encodeURIComponent(redirectParam)}`
+  const safeRedirect = redirectParam ? getSafeInternalRedirect(redirectParam, '') : '';
+  const customerRegisterUrl = safeRedirect
+    ? `/register/customer?redirect=${encodeURIComponent(safeRedirect)}`
     : '/register/customer';
   return (
     <div className="min-h-screen bg-[#FAF6F0] text-[#231208] flex flex-col justify-between py-12 px-4 sm:px-6 lg:px-8">

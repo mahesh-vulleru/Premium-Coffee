@@ -17,8 +17,24 @@ import {
 
 export const WholesaleDashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, logout } = useAuth();
+  const { currentUser, isLoading, logout } = useAuth();
   const { showToast } = useCart();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[75vh] flex flex-col items-center justify-center px-4 py-16 bg-[#FAF6F0]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center animate-pulse">
+            <Building2 className="w-8 h-8 animate-spin" />
+          </div>
+          <div className="text-center space-y-1">
+            <h2 className="font-serif text-lg font-bold text-[#3A1E0E]">Loading Wholesale Portal...</h2>
+            <p className="text-xs text-[#8A5934]">Verifying commercial credentials & authorization</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser || (currentUser.role !== 'wholesale' && currentUser.role !== 'admin')) {
     return (
@@ -55,8 +71,18 @@ export const WholesaleDashboardPage: React.FC = () => {
   const details = currentUser.wholesaleDetails;
   const isApproved = details?.status === 'approved';
 
-  const handleDownloadPriceSheet = () => {
-    showToast('Demo: Commercial Wholesale 2026 Price Sheet PDF generated');
+  const handleDownloadPriceSheet = async () => {
+    try {
+      const res = await fetch('/api/v1/wholesale/price-sheet', { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Commercial Price Sheet loaded: ${data.tiers.length} verified volume tiers`, 'success');
+      } else {
+        showToast(data.error || 'Access restricted: Commercial partner verification required.', 'error');
+      }
+    } catch {
+      showToast('Unable to reach wholesale server.', 'error');
+    }
   };
 
   const handleLogout = () => {

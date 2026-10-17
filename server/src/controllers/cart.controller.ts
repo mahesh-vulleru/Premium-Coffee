@@ -15,10 +15,10 @@ function calculateCartPricing(cart: ICart) {
     const product = item.product as unknown as IProduct;
     if (!product || !product.price) continue;
 
-    // Size multiplier: 250g = 1x, 500g = 1.85x, 1kg = 3.5x (matching frontend formula)
+    // Size multiplier: 250g = 1x, 500g = 1.85x, 1kg = 3.4x (matching frontend formula)
     let sizeMultiplier = 1;
     if (item.size === '500g') sizeMultiplier = 1.85;
-    else if (item.size === '1kg') sizeMultiplier = 3.5;
+    else if (item.size === '1kg') sizeMultiplier = 3.4;
 
     const unitPrice = Math.round(product.price * sizeMultiplier);
     const lineTotal = unitPrice * item.quantity;
@@ -165,7 +165,9 @@ export async function updateCartItem(req: AuthenticatedRequest, res: Response) {
     if (newQty <= 0) {
       cart.items.splice(itemIndex, 1);
     } else {
-      cart.items[itemIndex].quantity = newQty;
+      const product = await Product.findById(cart.items[itemIndex].product);
+      const maxStock = product && product.stockAvailable > 0 ? product.stockAvailable : 20;
+      cart.items[itemIndex].quantity = Math.min(newQty, maxStock);
     }
 
     await cart.save();

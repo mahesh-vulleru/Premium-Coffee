@@ -11,6 +11,7 @@
     "seed:products": "tsx src/scripts/seed-products.ts",
     "provision:admin": "tsx src/scripts/provision-admin.ts",
     "test": "tsx test-connection.ts",
+    "test:isolation": "tsx test-auth-isolation.ts",
     "lint": "oxlint"
   },
   "keywords": [

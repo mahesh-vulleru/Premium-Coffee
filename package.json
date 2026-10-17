@@ -13,7 +13,9 @@
     "server:seed": "npm --prefix server run seed",
     "server:seed-products": "npm --prefix server run seed:products",
     "server:provision-admin": "npm --prefix server run provision:admin",
-    "server:test": "npm --prefix server run test"
+    "server:test": "npm --prefix server run test",
+    "server:test-isolation": "npm --prefix server run test:isolation",
+    "server:lint": "npm --prefix server run lint"
   },
   "dependencies": {
     "lucide-react": "^1.57.0",

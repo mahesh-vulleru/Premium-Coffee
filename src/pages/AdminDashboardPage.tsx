@@ -20,6 +20,7 @@ export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     currentUser,
+    isLoading,
     allUsers,
     approveWholesaleUser,
     rejectWholesaleUser,
@@ -28,6 +29,22 @@ export const AdminDashboardPage: React.FC = () => {
   } = useAuth();
 
   const [notification, setNotification] = useState<string | null>(null);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen py-20 px-4 bg-stone-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-stone-800 text-amber-400 flex items-center justify-center border border-stone-700 animate-pulse">
+            <ShieldAlert className="w-8 h-8 animate-spin" />
+          </div>
+          <div>
+            <h2 className="font-serif text-lg font-bold text-stone-100">Accessing Command Center...</h2>
+            <p className="text-xs text-stone-400 mt-1">Verifying administrative security credentials</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Authorization check: Must be authenticated and have role === 'admin'
   if (!currentUser || currentUser.role !== 'admin') {

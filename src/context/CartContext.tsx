@@ -3,14 +3,17 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import type { CoffeeProduct, CartItem, GrindOption, BagSize, SubscriptionFrequency } from '../types/coffee';
 import { COFFEE_PRODUCTS, SUBSCRIPTION_FEATURED_PRODUCT } from '../data/coffeeData';
 import { calculateCartSummary } from '../utils/pricing';
+import { getSafeInternalRedirect } from '../utils/authRedirect';
 import { CartContext } from './useCart';
 import { useAuth } from './useAuth';
 import type { PendingAuthAction } from './useCart';
 export type { ToastState, CartContextType, PendingAuthAction } from './useCart';
 export { useCart } from './useCart';
 
-const CART_STORAGE_KEY = 'firedup_cart';
-const WISHLIST_STORAGE_KEY = 'firedup_wishlist';
+const GUEST_CART_KEY = 'firedup_guest_cart';
+const GUEST_WISHLIST_KEY = 'firedup_guest_wishlist';
+const USER_CART_KEY_PREFIX = 'firedup_cart_';
+const USER_WISHLIST_KEY_PREFIX = 'firedup_wishlist_';
 const PENDING_AUTH_ACTION_KEY = 'firedup_pending_auth_action';
 
 function sanitizeLoadedCart(raw: unknown): CartItem[] {
@@ -78,12 +81,60 @@ function sanitizeLoadedWishlist(raw: unknown): CoffeeProduct[] {
   return sanitized;
 }
 
+function validateAndResolvePendingAction(rawAction: unknown): PendingAuthAction | null {
+  if (!rawAction || typeof rawAction !== 'object') return null;
+  const candidate = rawAction as Partial<PendingAuthAction>;
+
+  if (candidate.type !== 'cart' && candidate.type !== 'wishlist') return null;
+
+  // Max freshness: 1 hour (3600000ms)
+  if (typeof candidate.createdAt !== 'number' || Date.now() - candidate.createdAt > 3600000) {
+    return null;
+  }
+
+  const prodId = candidate.product?.id || (candidate.product as any)?._id;
+  if (!prodId || typeof prodId !== 'string') return null;
+
+  const canonical =
+    COFFEE_PRODUCTS.find((p) => p.id === prodId || p._id === prodId) ||
+    (prodId === SUBSCRIPTION_FEATURED_PRODUCT.id ? SUBSCRIPTION_FEATURED_PRODUCT : null);
+
+  if (!canonical) return null;
+
+  const validGrinds: GrindOption[] = ['Whole Bean', 'French Press', 'Pour Over', 'Espresso', 'Cold Brew'];
+  const validSizes: BagSize[] = ['250g', '500g', '1kg'];
+  const validFrequencies: SubscriptionFrequency[] = ['2_weeks', '3_weeks', '4_weeks'];
+
+  const maxStock = canonical.stockAvailable > 0 ? canonical.stockAvailable : 10;
+  const rawQty = Number(candidate.quantity);
+  const quantity = Number.isInteger(rawQty) && rawQty > 0 ? Math.min(rawQty, maxStock) : 1;
+  const grind = candidate.grind && validGrinds.includes(candidate.grind) ? candidate.grind : 'Whole Bean';
+  const size = candidate.size && validSizes.includes(candidate.size) ? candidate.size : '250g';
+  const frequency =
+    candidate.frequency && validFrequencies.includes(candidate.frequency) ? candidate.frequency : undefined;
+  const returnUrl = getSafeInternalRedirect(candidate.returnUrl, '/shop');
+
+  return {
+    type: candidate.type,
+    product: canonical, // Always canonical trusted product
+    quantity,
+    grind,
+    size,
+    frequency,
+    returnUrl,
+    createdAt: candidate.createdAt,
+  };
+}
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, isLoading } = useAuth();
 
+  const currentUserId = currentUser ? currentUser.id || (currentUser as any)._id : null;
+  const activeUserIdRef = useRef<string | null>(null);
+
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      const saved = localStorage.getItem(GUEST_CART_KEY);
       return saved ? sanitizeLoadedCart(JSON.parse(saved)) : [];
     } catch {
       return [];
@@ -92,7 +143,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [wishlist, setWishlist] = useState<CoffeeProduct[]>(() => {
     try {
-      const saved = localStorage.getItem(WISHLIST_STORAGE_KEY);
+      const saved = localStorage.getItem(GUEST_WISHLIST_KEY);
       return saved ? sanitizeLoadedWishlist(JSON.parse(saved)) : [];
     } catch {
       return [];
@@ -111,7 +162,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pendingAuthAction, setPendingAuthAction] = useState<PendingAuthAction | null>(() => {
     try {
       const saved = sessionStorage.getItem(PENDING_AUTH_ACTION_KEY);
-      return saved ? JSON.parse(saved) : null;
+      return saved ? validateAndResolvePendingAction(JSON.parse(saved)) : null;
     } catch {
       return null;
     }
@@ -137,35 +188,57 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isLoading]);
 
-  // Sync to local storage for guests / offline access
+  // Synchronize authenticated user's cart & wishlist with strict account isolation
   useEffect(() => {
-    try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-    } catch (err) {
-      console.warn('Unable to persist cart to localStorage', err);
-    }
-  }, [cart]);
+    const prevUserId = activeUserIdRef.current;
+    activeUserIdRef.current = currentUserId;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(wishlist));
-    } catch (err) {
-      console.warn('Unable to persist wishlist to localStorage', err);
-    }
-  }, [wishlist]);
+    // 1. Account switched or logged out: wipe in-memory private state asynchronously
+    if (prevUserId !== currentUserId) {
+      queueMicrotask(() => {
+        setCart([]);
+        setWishlist([]);
+      });
 
-  // Synchronize authenticated user's cart & wishlist with MongoDB backend
-  useEffect(() => {
-    let isMounted = true;
+      if (!currentUserId) {
+        // User logged out: clear any user storage and pending actions
+        try {
+          if (prevUserId) {
+            localStorage.removeItem(`${USER_CART_KEY_PREFIX}${prevUserId}`);
+            localStorage.removeItem(`${USER_WISHLIST_KEY_PREFIX}${prevUserId}`);
+          }
+          sessionStorage.removeItem(PENDING_AUTH_ACTION_KEY);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    }
+
     if (!currentUser) return;
+
+    // 2. Administrators never inherit or sync customer shopping carts or wishlists
+    if (currentUser.role === 'admin') {
+      queueMicrotask(() => {
+        setCart([]);
+        setWishlist([]);
+        clearPendingAuthAction();
+      });
+      return;
+    }
+
+    // 3. Hydrate authenticated customer/wholesale cart and wishlist
+    let isStale = false;
 
     async function hydrateUserCartAndWishlist() {
       try {
-        // 1. Hydrate Cart from backend
+        // Hydrate Cart from backend
         const cartRes = await fetch('/api/v1/cart', { credentials: 'include' });
+        if (isStale || activeUserIdRef.current !== currentUserId) return;
+
         if (cartRes.ok) {
           const cartData = await cartRes.json();
-          if (cartData.success && cartData.cart?.items && isMounted) {
+          if (cartData.success && cartData.cart?.items) {
             if (cartData.cart.items.length > 0) {
               const mappedCart: CartItem[] = cartData.cart.items.map((i: any) => ({
                 product: {
@@ -178,36 +251,103 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 frequency: i.frequency,
               }));
               setCart(mappedCart);
-            } else if (cart.length > 0) {
-              // Sync initial guest cart to user account
-              await fetch('/api/v1/cart/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ items: cart }),
-              });
+              // Clean up guest cart now that user has an authenticated cart
+              try {
+                localStorage.removeItem(GUEST_CART_KEY);
+              } catch {
+                // ignore
+              }
+            } else {
+              // Backend cart is empty. Check if there was an explicit guest cart from the immediate session
+              let guestCart: CartItem[] = [];
+              try {
+                const rawGuestCart = localStorage.getItem(GUEST_CART_KEY);
+                guestCart = rawGuestCart ? sanitizeLoadedCart(JSON.parse(rawGuestCart)) : [];
+              } catch {
+                guestCart = [];
+              }
+
+              if (guestCart.length > 0) {
+                try {
+                  localStorage.removeItem(GUEST_CART_KEY);
+                } catch {
+                  // ignore
+                }
+                const syncRes = await fetch('/api/v1/cart/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ items: guestCart }),
+                });
+                if (syncRes.ok && !isStale && activeUserIdRef.current === currentUserId) {
+                  const syncData = await syncRes.json();
+                  if (syncData.success && syncData.cart?.items) {
+                    const mapped: CartItem[] = syncData.cart.items.map((i: any) => ({
+                      product: { ...i.product, id: i.product.id || i.product._id },
+                      quantity: i.quantity,
+                      grind: i.grind,
+                      size: i.size,
+                      frequency: i.frequency,
+                    }));
+                    setCart(mapped);
+                  }
+                }
+              } else {
+                setCart([]);
+              }
             }
           }
         }
 
-        // 2. Hydrate Wishlist from backend
+        // Hydrate Wishlist from backend
         const wishRes = await fetch('/api/v1/wishlist', { credentials: 'include' });
+        if (isStale || activeUserIdRef.current !== currentUserId) return;
+
         if (wishRes.ok) {
           const wishData = await wishRes.json();
-          if (wishData.success && Array.isArray(wishData.wishlist) && isMounted) {
+          if (wishData.success && Array.isArray(wishData.wishlist)) {
             if (wishData.wishlist.length > 0) {
               const mappedWishlist: CoffeeProduct[] = wishData.wishlist.map((p: any) => ({
                 ...p,
                 id: p.id || p._id,
               }));
               setWishlist(mappedWishlist);
-            } else if (wishlist.length > 0) {
-              await fetch('/api/v1/wishlist/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ productIds: wishlist.map((p) => p.id) }),
-              });
+              try {
+                localStorage.removeItem(GUEST_WISHLIST_KEY);
+              } catch {
+                // ignore
+              }
+            } else {
+              // Backend wishlist is empty. Check if there was an explicit guest wishlist
+              let guestWishlist: CoffeeProduct[] = [];
+              try {
+                const rawGuestWishlist = localStorage.getItem(GUEST_WISHLIST_KEY);
+                guestWishlist = rawGuestWishlist ? sanitizeLoadedWishlist(JSON.parse(rawGuestWishlist)) : [];
+              } catch {
+                guestWishlist = [];
+              }
+
+              if (guestWishlist.length > 0) {
+                try {
+                  localStorage.removeItem(GUEST_WISHLIST_KEY);
+                } catch {
+                  // ignore
+                }
+                const syncRes = await fetch('/api/v1/wishlist/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ productIds: guestWishlist.map((p) => p.id) }),
+                });
+                if (syncRes.ok && !isStale && activeUserIdRef.current === currentUserId) {
+                  const syncData = await syncRes.json();
+                  if (syncData.success && Array.isArray(syncData.wishlist)) {
+                    setWishlist(syncData.wishlist.map((p: any) => ({ ...p, id: p.id || p._id })));
+                  }
+                }
+              } else {
+                setWishlist([]);
+              }
             }
           }
         }
@@ -219,17 +359,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hydrateUserCartAndWishlist();
 
     return () => {
-      isMounted = false;
+      isStale = true;
     };
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+  // Persist guest or account-specific local cache
+  useEffect(() => {
+    try {
+      if (!currentUser) {
+        localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart));
+      } else if (currentUser.role !== 'admin' && currentUserId) {
+        localStorage.setItem(`${USER_CART_KEY_PREFIX}${currentUserId}`, JSON.stringify(cart));
+      }
+    } catch (err) {
+      console.warn('Unable to persist cart storage:', err);
+    }
+  }, [cart, currentUser, currentUserId]);
+
+  useEffect(() => {
+    try {
+      if (!currentUser) {
+        localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(wishlist));
+      } else if (currentUser.role !== 'admin' && currentUserId) {
+        localStorage.setItem(`${USER_WISHLIST_KEY_PREFIX}${currentUserId}`, JSON.stringify(wishlist));
+      }
+    } catch (err) {
+      console.warn('Unable to persist wishlist storage:', err);
+    }
+  }, [wishlist, currentUser, currentUserId]);
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
     const timer = setTimeout(() => {
       setToast(null);
     }, 3200);
     return () => clearTimeout(timer);
-  };
+  }, []);
 
   // Internal execution helper for adding to cart
   const executeAddToCart = useCallback(
@@ -285,7 +450,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }).catch((err) => console.warn('[CartContext] Background cart add error:', err));
       }
     },
-    [currentUser]
+    [currentUser, showToast]
   );
 
   // Internal execution helper for adding to wishlist with duplicate prevention
@@ -312,22 +477,31 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!currentUser) return;
 
-    let action: PendingAuthAction | null = null;
-    try {
-      const raw = sessionStorage.getItem(PENDING_AUTH_ACTION_KEY);
-      if (raw) action = JSON.parse(raw);
-    } catch {
-      action = null;
+    // Administrators never execute shopping deferred actions
+    if (currentUser.role === 'admin') {
+      queueMicrotask(() => {
+        clearPendingAuthAction();
+      });
+      return;
     }
 
-    if (action && action.product) {
-      // Clear storage immediately to guarantee completion EXACTLY ONCE
-      try {
-        sessionStorage.removeItem(PENDING_AUTH_ACTION_KEY);
-      } catch {
-        // ignore
-      }
+    let rawAction: unknown = null;
+    try {
+      const raw = sessionStorage.getItem(PENDING_AUTH_ACTION_KEY);
+      if (raw) rawAction = JSON.parse(raw);
+    } catch {
+      rawAction = null;
+    }
 
+    // Always clear storage immediately to guarantee completion EXACTLY ONCE
+    try {
+      sessionStorage.removeItem(PENDING_AUTH_ACTION_KEY);
+    } catch {
+      // ignore
+    }
+
+    const action = validateAndResolvePendingAction(rawAction);
+    if (action && action.product) {
       const pending = action;
       // Schedule state update asynchronously to avoid cascading renders in effect
       const timer = setTimeout(() => {
@@ -355,8 +529,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 0);
 
       return () => clearTimeout(timer);
+    } else {
+      queueMicrotask(() => {
+        setPendingAuthAction(null);
+      });
     }
-  }, [currentUser, executeAddToCart, executeAddToWishlist]);
+  }, [currentUser, clearPendingAuthAction, executeAddToCart, executeAddToWishlist, showToast]);
 
   // Public addToCart: checks auth state reliably, opens modal for unauthenticated guests
   const addToCart = useCallback(
@@ -374,12 +552,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // 2. Unauthenticated visitor: record intended action and open auth modal
+      // 2. Administrators never make personal shopping additions
+      if (currentUser?.role === 'admin') {
+        showToast('Staff administrative accounts cannot maintain a shopping cart. Please use a customer account.', 'info');
+        return;
+      }
+
+      // 3. Unauthenticated visitor: record intended action and open auth modal
       if (!currentUser) {
         const returnUrl =
           typeof window !== 'undefined'
-            ? window.location.pathname + window.location.search
-            : '/';
+            ? getSafeInternalRedirect(window.location.pathname + window.location.search, '/shop')
+            : '/shop';
         const action: PendingAuthAction = {
           type: 'cart',
           product,
@@ -401,12 +585,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // 3. Authenticated customer: execute addition immediately
+      // 4. Authenticated customer: execute addition immediately
       executeAddToCart(product, quantity, grind, size, frequency);
       const frequencyLabel = frequency ? ` (${frequency.replace('_', ' ')})` : '';
       showToast(`Added ${quantity}x "${product.name}" (${size}, ${grind}${frequencyLabel}) to cart`);
     },
-    [currentUser, executeAddToCart, isLoading]
+    [currentUser, executeAddToCart, isLoading, showToast]
   );
 
   const removeFromCart = (productId: string, grind: string, size: string, frequency?: string) => {
@@ -502,12 +686,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // 2. Unauthenticated visitor: record intended action and open auth modal
+      // 2. Administrators never maintain a personal wishlist
+      if (currentUser?.role === 'admin') {
+        showToast('Staff administrative accounts cannot maintain a wishlist.', 'info');
+        return;
+      }
+
+      // 3. Unauthenticated visitor: record intended action and open auth modal
       if (!currentUser) {
         const returnUrl =
           typeof window !== 'undefined'
-            ? window.location.pathname + window.location.search
-            : '/';
+            ? getSafeInternalRedirect(window.location.pathname + window.location.search, '/shop')
+            : '/shop';
         const action: PendingAuthAction = {
           type: 'wishlist',
           product,
@@ -544,7 +734,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }).catch((err) => console.warn('[CartContext] Background wishlist toggle error:', err));
       }
     },
-    [currentUser, isLoading]
+    [currentUser, isLoading, showToast]
   );
 
   const isInWishlist = (productId: string) =>
