@@ -5,6 +5,9 @@ import { env } from './config/env.js';
 import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import productRoutes from './routes/product.routes.js';
+import cartRoutes from './routes/cart.routes.js';
+import wishlistRoutes from './routes/wishlist.routes.js';
 import {
   notFoundHandler,
   globalErrorHandler,
@@ -34,6 +37,9 @@ export function createApp(): Express {
   app.use('/api/v1/health', healthRoutes);
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/admin', adminRoutes);
+  app.use('/api/v1/products', productRoutes);
+  app.use('/api/v1/cart', cartRoutes);
+  app.use('/api/v1/wishlist', wishlistRoutes);
 
   // Fallback 404 & Centralized Error Handlers
   app.use(notFoundHandler);

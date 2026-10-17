@@ -64,7 +64,7 @@ export const RegisterSelectPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                  <span>Free shipping on orders over $75</span>
+                  <span>Free shipping on orders over ₹999</span>
                 </div>
               </div>
             </div>

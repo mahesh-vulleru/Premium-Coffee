@@ -151,7 +151,7 @@ export const Footer: React.FC = () => {
               <li>
                 <button
                   type="button"
-                  onClick={handleInfoLink('Gift Cards', 'Digital e-gift cards ($25, $50, $100) are coming soon for holiday season.')}
+                  onClick={handleInfoLink('Gift Cards', 'Digital e-gift cards (₹500, ₹1,000, ₹2,500) are coming soon for holiday season.')}
                   className="hover:text-white transition-colors text-left"
                 >
                   Gift Cards
@@ -173,7 +173,7 @@ export const Footer: React.FC = () => {
               <li>
                 <button
                   type="button"
-                  onClick={handleInfoLink('Shipping & Returns', 'Free doorstep shipping on orders over $75. 30-day roast freshness guarantee.')}
+                  onClick={handleInfoLink('Shipping & Returns', 'Free doorstep shipping on orders over ₹999. 30-day roast freshness guarantee.')}
                   className="hover:text-white transition-colors text-left"
                 >
                   Shipping & Returns

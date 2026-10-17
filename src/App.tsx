@@ -12,6 +12,7 @@ import { Toast } from './components/Toast';
 // Pages
 import { StorefrontPage } from './pages/StorefrontPage';
 import { ShopPage } from './pages/ShopPage';
+import { ProductDetailPage } from './pages/ProductDetailPage';
 import { DealsPage } from './pages/DealsPage';
 import { SubscribePage } from './pages/SubscribePage';
 import { OurStoryPage } from './pages/OurStoryPage';
@@ -52,6 +53,7 @@ export function App() {
 
                 {/* 2. Full Shop Catalogue & Filters */}
                 <Route path="/shop" element={<ShopPage />} />
+                <Route path="/product/:id" element={<ProductDetailPage />} />
 
                 {/* 3. Offers & Deals */}
                 <Route path="/deals" element={<DealsPage />} />

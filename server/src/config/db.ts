@@ -5,22 +5,27 @@ import { env } from './env.js';
 // Ensure SRV record lookup succeeds across all Windows and router DNS setups
 try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
+  dns.setDefaultResultOrder('ipv4first');
 } catch {
   // Fallback to default system resolver
 }
 
 let isConnected = false;
 
-export async function connectDB(): Promise<typeof mongoose> {
-  if (isConnected) {
+export async function connectDB(customUri?: string, customDbName?: string): Promise<typeof mongoose> {
+  if (isConnected && mongoose.connection.readyState === 1) {
     return mongoose;
   }
 
+  const targetDbName = customDbName || env.DB_NAME;
+  const primaryUri = customUri || env.MONGODB_URI;
+  const fallbackUri = `mongodb://127.0.0.1:27017/${targetDbName}`;
+
   try {
-    const conn = await mongoose.connect(env.MONGODB_URI, {
-      dbName: env.DB_NAME,
+    const conn = await mongoose.connect(primaryUri, {
+      dbName: targetDbName,
       autoIndex: true,
-      serverSelectionTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 8000,
     });
 
     isConnected = conn.connection.readyState === 1;
@@ -39,10 +44,33 @@ export async function connectDB(): Promise<typeof mongoose> {
     });
 
     return conn;
-  } catch (error) {
-    console.error('[Database] MongoDB connection failed:', error);
+  } catch (primaryError: any) {
+    if (primaryUri !== fallbackUri) {
+      console.warn(
+        `[Database] Primary MongoDB connection failed (${primaryError.message?.slice(0, 80)}...). Attempting local fallback: ${fallbackUri}`
+      );
+      try {
+        const fallbackConn = await mongoose.connect(fallbackUri, {
+          dbName: targetDbName,
+          autoIndex: true,
+          serverSelectionTimeoutMS: 4000,
+        });
+
+        isConnected = fallbackConn.connection.readyState === 1;
+        console.log(
+          `[Database] Successfully connected to Local MongoDB: ${fallbackConn.connection.host}/${fallbackConn.connection.name}`
+        );
+
+        return fallbackConn;
+      } catch {
+        console.error('[Database] Both primary and local fallback connections failed.');
+        throw primaryError;
+      }
+    }
+
+    console.error('[Database] MongoDB connection failed:', primaryError);
     isConnected = false;
-    throw error;
+    throw primaryError;
   }
 }
 

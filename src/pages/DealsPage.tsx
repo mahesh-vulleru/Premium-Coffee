@@ -79,7 +79,7 @@ export const DealsPage: React.FC = () => {
             </div>
             <div className="text-2xl font-black text-[#3A1E0E]">FREE SHIPPING</div>
             <p className="text-xs text-[#6E4022]">
-              Automatically applied on orders exceeding $75.
+              Automatically applied on orders exceeding ₹999.
             </p>
             <div className="pt-2 flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
               <Check className="w-4 h-4" />

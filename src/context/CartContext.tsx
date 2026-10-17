@@ -4,6 +4,7 @@ import type { CoffeeProduct, CartItem, GrindOption, BagSize, SubscriptionFrequen
 import { COFFEE_PRODUCTS, SUBSCRIPTION_FEATURED_PRODUCT } from '../data/coffeeData';
 import { calculateCartSummary } from '../utils/pricing';
 import { CartContext } from './useCart';
+import { useAuth } from './useAuth';
 export type { ToastState, CartContextType } from './useCart';
 export { useCart } from './useCart';
 
@@ -21,11 +22,11 @@ function sanitizeLoadedCart(raw: unknown): CartItem[] {
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const candidate = item as Partial<CartItem> & { product?: Partial<CoffeeProduct> };
-    const prodId = candidate.product?.id;
+    const prodId = candidate.product?.id || candidate.product?._id;
     if (!prodId || typeof prodId !== 'string') continue;
 
     const canonical =
-      COFFEE_PRODUCTS.find((p) => p.id === prodId) ||
+      COFFEE_PRODUCTS.find((p) => p.id === prodId || p._id === prodId) ||
       (prodId === SUBSCRIPTION_FEATURED_PRODUCT.id ? SUBSCRIPTION_FEATURED_PRODUCT : null);
 
     const product: CoffeeProduct | null =
@@ -63,10 +64,10 @@ function sanitizeLoadedWishlist(raw: unknown): CoffeeProduct[] {
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const candidate = item as Partial<CoffeeProduct>;
-    const prodId = candidate.id;
+    const prodId = candidate.id || candidate._id;
     if (!prodId || typeof prodId !== 'string') continue;
 
-    const canonical = COFFEE_PRODUCTS.find((p) => p.id === prodId);
+    const canonical = COFFEE_PRODUCTS.find((p) => p.id === prodId || p._id === prodId);
     if (canonical) {
       sanitized.push(canonical);
     }
@@ -76,6 +77,8 @@ function sanitizeLoadedWishlist(raw: unknown): CoffeeProduct[] {
 }
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
+
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
@@ -101,6 +104,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' | 'error' } | null>(null);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
+  // Sync to local storage for guests / offline access
   useEffect(() => {
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
@@ -116,6 +120,75 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Unable to persist wishlist to localStorage', err);
     }
   }, [wishlist]);
+
+  // Synchronize authenticated user's cart & wishlist with MongoDB backend
+  useEffect(() => {
+    let isMounted = true;
+    if (!currentUser) return;
+
+    async function hydrateUserCartAndWishlist() {
+      try {
+        // 1. Hydrate Cart from backend
+        const cartRes = await fetch('/api/v1/cart', { credentials: 'include' });
+        if (cartRes.ok) {
+          const cartData = await cartRes.json();
+          if (cartData.success && cartData.cart?.items && isMounted) {
+            if (cartData.cart.items.length > 0) {
+              const mappedCart: CartItem[] = cartData.cart.items.map((i: any) => ({
+                product: {
+                  ...i.product,
+                  id: i.product.id || i.product._id,
+                },
+                quantity: i.quantity,
+                grind: i.grind,
+                size: i.size,
+                frequency: i.frequency,
+              }));
+              setCart(mappedCart);
+            } else if (cart.length > 0) {
+              // Sync initial guest cart to user account
+              await fetch('/api/v1/cart/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ items: cart }),
+              });
+            }
+          }
+        }
+
+        // 2. Hydrate Wishlist from backend
+        const wishRes = await fetch('/api/v1/wishlist', { credentials: 'include' });
+        if (wishRes.ok) {
+          const wishData = await wishRes.json();
+          if (wishData.success && Array.isArray(wishData.wishlist) && isMounted) {
+            if (wishData.wishlist.length > 0) {
+              const mappedWishlist: CoffeeProduct[] = wishData.wishlist.map((p: any) => ({
+                ...p,
+                id: p.id || p._id,
+              }));
+              setWishlist(mappedWishlist);
+            } else if (wishlist.length > 0) {
+              await fetch('/api/v1/wishlist/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ productIds: wishlist.map((p) => p.id) }),
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[CartContext] Backend cart/wishlist sync failed:', err);
+      }
+    }
+
+    hydrateUserCartAndWishlist();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
@@ -161,6 +234,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return [...prev, { product, quantity: validQty, grind, size, frequency }];
     });
 
+    // If authenticated, persist to MongoDB
+    if (currentUser) {
+      fetch('/api/v1/cart/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          productId: product._id || product.id,
+          quantity: validQty,
+          grind,
+          size,
+          frequency,
+        }),
+      }).catch((err) => console.warn('[CartContext] Background cart add error:', err));
+    }
+
     const frequencyLabel = frequency ? ` (${frequency.replace('_', ' ')})` : '';
     showToast(`Added ${validQty}x "${product.name}" (${size}, ${grind}${frequencyLabel}) to cart`);
   };
@@ -177,6 +266,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           )
       )
     );
+
+    if (currentUser) {
+      // Re-sync updated cart to backend
+      setTimeout(() => {
+        setCart((current) => {
+          fetch('/api/v1/cart/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ items: current }),
+          }).catch(console.warn);
+          return current;
+        });
+      }, 50);
+    }
   };
 
   const updateQuantity = (
@@ -187,7 +291,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     frequency?: string
   ) => {
     setCart((prev) => {
-      return prev
+      const nextCart = prev
         .map((item) => {
           if (
             item.product.id === productId &&
@@ -207,28 +311,56 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return item;
         })
         .filter(Boolean) as CartItem[];
+
+      if (currentUser) {
+        fetch('/api/v1/cart/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ items: nextCart }),
+        }).catch(console.warn);
+      }
+
+      return nextCart;
     });
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    if (currentUser) {
+      fetch('/api/v1/cart', {
+        method: 'DELETE',
+        credentials: 'include',
+      }).catch(console.warn);
+    }
+  };
 
   const { subtotal } = useMemo(() => calculateCartSummary(cart, 0), [cart]);
   const cartTotal = subtotal;
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   const toggleWishlist = (product: CoffeeProduct) => {
+    const prodId = product.id || product._id;
     setWishlist((prev) => {
-      const exists = prev.some((p) => p.id === product.id);
+      const exists = prev.some((p) => p.id === prodId || p._id === prodId);
       if (exists) {
         showToast(`Removed "${product.name}" from wishlist`, 'info');
-        return prev.filter((p) => p.id !== product.id);
+        return prev.filter((p) => p.id !== prodId && p._id !== prodId);
       }
       showToast(`Saved "${product.name}" to wishlist`, 'success');
       return [...prev, product];
     });
+
+    if (currentUser && prodId) {
+      fetch(`/api/v1/wishlist/${prodId}`, {
+        method: 'POST',
+        credentials: 'include',
+      }).catch((err) => console.warn('[CartContext] Background wishlist toggle error:', err));
+    }
   };
 
-  const isInWishlist = (productId: string) => wishlist.some((p) => p.id === productId);
+  const isInWishlist = (productId: string) =>
+    wishlist.some((p) => p.id === productId || p._id === productId);
 
   return (
     <CartContext.Provider

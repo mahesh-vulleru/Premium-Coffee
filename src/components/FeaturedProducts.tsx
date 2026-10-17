@@ -146,9 +146,12 @@ export const FeaturedProducts: React.FC = () => {
                   </div>
 
                   {/* Product Title & Tasting Notes */}
-                  <h3 className="font-serif font-bold text-base text-[#3A1E0E] line-clamp-1 group-hover:text-terracotta-600 transition-colors">
+                  <Link
+                    to={`/product/${product.id}`}
+                    className="font-serif font-bold text-base text-[#3A1E0E] line-clamp-1 group-hover:text-terracotta-600 transition-colors block"
+                  >
                     {product.name}
-                  </h3>
+                  </Link>
                   <p className="text-[11px] text-[#8A5934] line-clamp-1 mt-0.5">
                     {product.tastingNotes.join(' • ')}
                   </p>

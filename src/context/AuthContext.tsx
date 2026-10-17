@@ -4,6 +4,7 @@ import type {
   CustomerRegistrationPayload,
   WholesaleRegistrationPayload,
   AdminRegistrationPayload,
+  UpdateProfilePayload,
 } from '../types/auth';
 import { AuthContext } from './useAuth';
 
@@ -288,38 +289,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // If initializing session, still render children so hydration & UI mount cleanly
-  if (isInitializing) {
-    return (
-      <AuthContext.Provider
-        value={{
-          currentUser,
-          allUsers,
-          login,
-          logout,
-          registerCustomer,
-          registerWholesale,
-          registerAdmin,
-          approveWholesaleUser,
-          rejectWholesaleUser,
-          activeInvitationTokens,
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
-    );
-  }
+  const updateProfile = async (
+    payload: UpdateProfilePayload
+  ): Promise<{ success: boolean; error?: string; user?: User }> => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || 'Failed to update profile.',
+        };
+      }
+
+      setCurrentUser(data.user);
+      return { success: true, user: data.user };
+    } catch (err) {
+      console.error('[Auth] Update profile error:', err);
+      return {
+        success: false,
+        error: 'Unable to connect to server. Please try again.',
+      };
+    }
+  };
 
   return (
     <AuthContext.Provider
       value={{
         currentUser,
+        isLoading: isInitializing,
         allUsers,
         login,
         logout,
         registerCustomer,
         registerWholesale,
         registerAdmin,
+        updateProfile,
         approveWholesaleUser,
         rejectWholesaleUser,
         activeInvitationTokens,

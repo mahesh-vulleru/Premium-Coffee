@@ -96,7 +96,7 @@ export const HomePromoSection: React.FC = () => {
               </h3>
 
               <p className="text-xs text-[#6E4022] leading-relaxed">
-                Use code <strong className="text-[#3A1E0E] font-mono">FIREDUP15</strong> during checkout. Free doorstep delivery unlocked on all coffee orders over $75.
+                Use code <strong className="text-[#3A1E0E] font-mono">FIREDUP15</strong> during checkout. Free doorstep delivery unlocked on all coffee orders over ₹999.
               </p>
 
               {/* Promo code badge */}

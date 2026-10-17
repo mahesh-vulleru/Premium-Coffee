@@ -4,16 +4,19 @@ import type {
   CustomerRegistrationPayload,
   WholesaleRegistrationPayload,
   AdminRegistrationPayload,
+  UpdateProfilePayload,
 } from '../types/auth';
 
 export interface AuthContextType {
   currentUser: User | null;
+  isLoading: boolean;
   allUsers: User[];
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   registerCustomer: (payload: CustomerRegistrationPayload) => Promise<{ success: boolean; error?: string; user?: User }>;
   registerWholesale: (payload: WholesaleRegistrationPayload) => Promise<{ success: boolean; error?: string; user?: User }>;
   registerAdmin: (payload: AdminRegistrationPayload) => Promise<{ success: boolean; error?: string; user?: User }>;
+  updateProfile: (payload: UpdateProfilePayload) => Promise<{ success: boolean; error?: string; user?: User }>;
   approveWholesaleUser: (userId: string) => void;
   rejectWholesaleUser: (userId: string, reason?: string) => void;
   activeInvitationTokens: string[];

@@ -20,7 +20,7 @@ export const CustomerRegisterPage: React.FC = () => {
     city: '',
     state: '',
     postalCode: '',
-    country: 'United States',
+    country: 'India',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,7 +66,7 @@ export const CustomerRegisterPage: React.FC = () => {
 
     if (result.success) {
       showToast(`Welcome, ${result.user?.name}! Your customer account is active.`);
-      navigate('/');
+      navigate('/dashboard/customer');
     } else {
       setErrorMessage(result.error || 'Failed to complete registration.');
     }
@@ -317,6 +317,7 @@ export const CustomerRegisterPage: React.FC = () => {
                     onChange={handleChange}
                     className="w-full px-3 py-2 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
                   >
+                    <option value="India">India</option>
                     <option value="United States">United States</option>
                     <option value="Canada">Canada</option>
                     <option value="United Kingdom">United Kingdom</option>

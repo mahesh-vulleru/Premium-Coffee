@@ -62,3 +62,9 @@ export interface AdminRegistrationPayload {
   invitationToken: string;
 }
 
+export interface UpdateProfilePayload {
+  name?: string;
+  phone?: string;
+  shippingAddress?: ShippingAddress;
+}
+

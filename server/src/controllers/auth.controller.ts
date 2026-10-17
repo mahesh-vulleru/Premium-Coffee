@@ -1,9 +1,21 @@
 import type { Request, Response } from 'express';
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { User, type IUser } from '../models/User.js';
 import { AdminToken } from '../models/AdminToken.js';
 import { env } from '../config/env.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
+
+function timingSafeCompare(candidate: string, secret: string): boolean {
+  if (!candidate || !secret) return false;
+  const candBuf = Buffer.from(candidate.trim());
+  const secretBuf = Buffer.from(secret.trim());
+  if (candBuf.length !== secretBuf.length) {
+    crypto.timingSafeEqual(candBuf, candBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(candBuf, secretBuf);
+}
 
 function generateTokenAndSetCookie(res: Response, user: IUser): string {
   const token = jwt.sign(
@@ -115,7 +127,7 @@ export async function registerAdmin(req: Request, res: Response) {
   let tokenValid = false;
   let dbTokenDoc = null;
 
-  if (invitationToken.trim() === env.ADMIN_INVITATION_SECRET) {
+  if (timingSafeCompare(invitationToken, env.ADMIN_INVITATION_SECRET)) {
     tokenValid = true;
   } else {
     dbTokenDoc = await AdminToken.findOne({
@@ -130,7 +142,7 @@ export async function registerAdmin(req: Request, res: Response) {
 
   if (!tokenValid) {
     console.warn(
-      `[Security Alert] Unauthorized attempt to register admin with invalid token: "${invitationToken}" for email: ${email}`
+      `[Security Alert] Unauthorized attempt to register admin with invalid token for email: ${email}`
     );
     return res.status(403).json({
       success: false,
@@ -143,7 +155,7 @@ export async function registerAdmin(req: Request, res: Response) {
   if (existing) {
     return res.status(409).json({
       success: false,
-      error: 'An account with this email address already exists.',
+      error: 'An account with this email address already exists. Existing accounts cannot be elevated via registration.',
     });
   }
 
@@ -232,6 +244,64 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
 
   return res.status(200).json({
     success: true,
+    user: req.user.toJSON(),
+  });
+}
+
+// PUT /api/v1/auth/profile
+export async function updateProfile(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: 'Not authenticated',
+    });
+  }
+
+  const { name, phone, shippingAddress } = req.body;
+
+  if (name !== undefined) {
+    if (typeof name !== 'string' || name.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Full name must be at least 2 characters.',
+      });
+    }
+    req.user.name = name.trim();
+  }
+
+  if (phone !== undefined) {
+    if (typeof phone !== 'string' || phone.trim().length < 7) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number must be at least 7 characters.',
+      });
+    }
+    req.user.phone = phone.trim();
+  }
+
+  if (shippingAddress) {
+    const { street, apartment, city, state, postalCode, country } = shippingAddress;
+    if (!street || !city || !state || !postalCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Street, city, state, and postal code are required for shipping address.',
+      });
+    }
+    req.user.shippingAddress = {
+      street: String(street).trim(),
+      apartment: apartment ? String(apartment).trim() : '',
+      city: String(city).trim(),
+      state: String(state).trim(),
+      postalCode: String(postalCode).trim(),
+      country: country ? String(country).trim() : 'India',
+    };
+  }
+
+  await req.user.save();
+
+  return res.status(200).json({
+    success: true,
+    message: 'Profile updated successfully',
     user: req.user.toJSON(),
   });
 }

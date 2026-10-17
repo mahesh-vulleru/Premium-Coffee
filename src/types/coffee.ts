@@ -16,6 +16,13 @@ export interface CoffeeProduct {
   origin: string;
   description: string;
   stockAvailable: number;
+  _id?: string;
+  brewGuide?: {
+    method: string;
+    ratio: string;
+    temperature: string;
+    grindRecommendation: string;
+  };
 }
 
 export type GrindOption = 'Whole Bean' | 'French Press' | 'Pour Over' | 'Espresso' | 'Cold Brew';

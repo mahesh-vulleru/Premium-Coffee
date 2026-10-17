@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Heart,
   ShoppingBag,
@@ -16,8 +17,11 @@ import {
   Minus,
   Flame,
   Coffee,
+  ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import { COFFEE_PRODUCTS } from '../data/coffeeData';
+import { fetchProducts } from '../services/productService';
 import type { CoffeeProduct, CartItem } from '../types/coffee';
 import { useCart } from '../context/CartContext';
 import { CoffeeFinderModal } from './CoffeeFinderModal';
@@ -45,11 +49,35 @@ export const BestSellerSection: React.FC = () => {
   } = useCart();
 
   // State management
+  const [productsList, setProductsList] = useState<CoffeeProduct[]>(() => COFFEE_PRODUCTS);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('best_sellers');
   const [roastFilter, setRoastFilter] = useState<RoastFilter>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortOption>('featured');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Load products from backend API
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCatalog() {
+      setIsLoadingProducts(true);
+      try {
+        const res = await fetchProducts();
+        if (isMounted && res.success && res.products.length > 0) {
+          setProductsList(res.products);
+        }
+      } catch (err) {
+        console.warn('[BestSellerSection] Failed to load catalog from API:', err);
+      } finally {
+        if (isMounted) setIsLoadingProducts(false);
+      }
+    }
+    loadCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Per-card selections: bag size, grind, quantity, and added feedback
   const [selectedSizes, setSelectedSizes] = useState<Record<string, CartItem['size']>>({});
@@ -79,7 +107,7 @@ export const BestSellerSection: React.FC = () => {
 
   // Quantity updates
   const handleQuantityDelta = (productId: string, delta: number) => {
-    const product = COFFEE_PRODUCTS.find((p) => p.id === productId);
+    const product = productsList.find((p) => p.id === productId);
     const maxStock = product && product.stockAvailable > 0 ? product.stockAvailable : 10;
     setQuantities((prev) => {
       const current = prev[productId] || 1;
@@ -107,7 +135,7 @@ export const BestSellerSection: React.FC = () => {
 
   // Filter & Sort Logic
   const processedProducts = useMemo(() => {
-    return COFFEE_PRODUCTS.filter((prod) => {
+    return productsList.filter((prod) => {
       // 1. Tab filter
       if (activeTab === 'sale' && !prod.isSale) return false;
       if (activeTab !== 'all' && activeTab !== 'sale' && prod.tag !== activeTab) return false;
@@ -143,17 +171,17 @@ export const BestSellerSection: React.FC = () => {
           return 0;
       }
     });
-  }, [activeTab, selectedCategory, roastFilter, searchQuery, sortBy]);
+  }, [productsList, activeTab, selectedCategory, roastFilter, searchQuery, sortBy]);
 
   // Compared products object array
   const comparedProducts = useMemo(() => {
-    return COFFEE_PRODUCTS.filter((p) => compareIds.includes(p.id));
-  }, [compareIds]);
+    return productsList.filter((p) => compareIds.includes(p.id));
+  }, [productsList, compareIds]);
 
   // Count items on sale
   const saleCount = useMemo(() => {
-    return COFFEE_PRODUCTS.filter((p) => p.isSale).length;
-  }, []);
+    return productsList.filter((p) => p.isSale).length;
+  }, [productsList]);
 
   return (
     <section id="best-sellers" className="py-16 sm:py-20 bg-[#FAF6F0] relative">
@@ -369,11 +397,19 @@ export const BestSellerSection: React.FC = () => {
 
         {/* Results Counter */}
         <div className="flex items-center justify-between text-xs text-[#6E4022] mb-4 px-1">
-          <span>
-            Showing <strong className="text-[#2B170E]">{processedProducts.length}</strong> of {COFFEE_PRODUCTS.length} artisan roasts
+          <span className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-[#2B170E]">{processedProducts.length}</strong> of {productsList.length} artisan roasts
+            </span>
+            {isLoadingProducts && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-terracotta-600 font-semibold animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Refreshing catalogue...</span>
+              </span>
+            )}
           </span>
-          <span className="text-[#8A5934] font-medium">
-            🔥 Free shipping on orders over $75 • Roasted fresh weekly
+          <span className="text-[#8A5934] font-medium hidden sm:inline">
+            🔥 Free shipping on orders over ₹999 • Roasted fresh to order
           </span>
         </div>
 
@@ -474,6 +510,14 @@ export const BestSellerSection: React.FC = () => {
                       >
                         <Scale className="w-3.5 h-3.5" />
                       </button>
+
+                      <Link
+                        to={`/product/${product.id}`}
+                        title="View Full Roast Details"
+                        className="w-8 h-8 rounded-full bg-white text-[#2B170E] hover:bg-terracotta-500 hover:text-white flex items-center justify-center shadow-md transition-all scale-90 group-hover:scale-100"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
                   </div>
 
@@ -485,13 +529,13 @@ export const BestSellerSection: React.FC = () => {
                       <span className="text-[#AF8359]">({product.reviewsCount})</span>
                     </div>
 
-                    <h3
-                      onClick={() => setQuickViewProduct(product)}
-                      className="font-serif font-bold text-xs sm:text-sm text-[#3A1E0E] hover:text-terracotta-600 cursor-pointer line-clamp-1 transition-colors"
+                    <Link
+                      to={`/product/${product.id}`}
+                      className="font-serif font-bold text-xs sm:text-sm text-[#3A1E0E] hover:text-terracotta-600 block line-clamp-1 transition-colors"
                       title={product.name}
                     >
                       {product.name}
-                    </h3>
+                    </Link>
 
                     <div className="text-[11px] text-[#8A5934] line-clamp-1 flex items-center justify-center gap-1.5">
                       <span>{product.roastLevel} Roast</span>
@@ -528,11 +572,11 @@ export const BestSellerSection: React.FC = () => {
                     {/* Price calculation */}
                     <div className="pt-1 flex items-center justify-center gap-2">
                       <span className="font-extrabold text-sm sm:text-base text-[#3A1E0E]">
-                        ${displayPrice}
+                        {formatCurrency(displayPrice)}
                       </span>
                       {originalDisplayPrice && (
                         <span className="text-xs text-[#AF8359] line-through">
-                          ${originalDisplayPrice}
+                          {formatCurrency(originalDisplayPrice)}
                         </span>
                       )}
                     </div>
@@ -653,12 +697,12 @@ export const BestSellerSection: React.FC = () => {
                         <span className="text-xs text-[#8A5934]">• {product.origin}</span>
                       </div>
 
-                      <h3
-                        onClick={() => setQuickViewProduct(product)}
-                        className="font-serif text-lg sm:text-xl font-bold text-[#2B170E] hover:text-terracotta-600 cursor-pointer"
+                      <Link
+                        to={`/product/${product.id}`}
+                        className="font-serif text-lg sm:text-xl font-bold text-[#2B170E] hover:text-terracotta-600 block transition-colors"
                       >
                         {product.name}
-                      </h3>
+                      </Link>
 
                       <p className="text-xs text-[#6E4022] line-clamp-2 max-w-xl">
                         {product.description}
@@ -719,9 +763,9 @@ export const BestSellerSection: React.FC = () => {
                     {/* Price and Cart buttons */}
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="font-extrabold text-xl text-[#2B170E]">${displayPrice}</div>
+                        <div className="font-extrabold text-xl text-[#2B170E]">{formatCurrency(displayPrice)}</div>
                         {originalDisplayPrice && (
-                          <div className="text-xs text-[#AF8359] line-through">${originalDisplayPrice}</div>
+                          <div className="text-xs text-[#AF8359] line-through">{formatCurrency(originalDisplayPrice)}</div>
                         )}
                       </div>
 
@@ -790,6 +834,15 @@ export const BestSellerSection: React.FC = () => {
                       >
                         <Scale className="w-4 h-4" />
                       </button>
+
+                      {/* Product Details link */}
+                      <Link
+                        to={`/product/${product.id}`}
+                        title="View Full Product Details"
+                        className="p-2.5 rounded-xl border border-[#EBDCCE] bg-[#FAF6F0] text-[#6E4022] hover:bg-white transition-colors flex items-center justify-center"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
                     </div>
                   </div>
                 </div>

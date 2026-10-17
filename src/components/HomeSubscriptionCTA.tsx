@@ -79,7 +79,7 @@ export const HomeSubscriptionCTA: React.FC = () => {
                 </span>
               </Link>
               <span className="text-xs text-[#D5BC9F]">
-                Starting from $110/bag • Cancel anytime
+                Starting from ₹550/bag • Cancel anytime
               </span>
             </div>
           </div>

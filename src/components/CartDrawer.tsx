@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useId } from 'react';
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2, ShieldCheck, Tag } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2, Tag, Clock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { calculateCartSummary, calculateProductPrice, formatCurrency } from '../utils/pricing';
+import { calculateCartSummary, calculateProductPrice, formatCurrency, FREE_SHIPPING_THRESHOLD } from '../utils/pricing';
 import { handleImageError } from '../utils/imageFallback';
 
 export const CartDrawer: React.FC = () => {
@@ -11,15 +12,13 @@ export const CartDrawer: React.FC = () => {
     setIsCartOpen,
     removeFromCart,
     updateQuantity,
-    clearCart,
     showToast,
   } = useCart();
 
   const [promoCode, setPromoCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState(0);
   const [promoMessage, setPromoMessage] = useState<{ text: string; error?: boolean } | null>(null);
-  const [checkoutStep, setCheckoutStep] = useState<'cart' | 'checkout_preview' | 'demo_success'>('cart');
-  const [demoOrderRef, setDemoOrderRef] = useState<string>('');
+  const [checkoutStep, setCheckoutStep] = useState<'cart' | 'checkout_preview'>('cart');
 
   const titleId = useId();
 
@@ -66,12 +65,6 @@ export const CartDrawer: React.FC = () => {
     setCheckoutStep('checkout_preview');
   };
 
-  const handleSimulateOrder = () => {
-    const randomRef = 'FDP-' + Math.floor(100000 + Math.random() * 900000);
-    setDemoOrderRef(randomRef);
-    setCheckoutStep('demo_success');
-  };
-
   return (
     <div
       role="dialog"
@@ -97,16 +90,14 @@ export const CartDrawer: React.FC = () => {
               <h2 id={titleId} className="font-serif text-lg font-bold text-[#3A1E0E]">
                 {checkoutStep === 'cart'
                   ? `Your Roastery Cart (${cart.reduce((s, i) => s + i.quantity, 0)})`
-                  : checkoutStep === 'checkout_preview'
-                  ? 'Checkout Review (Demo)'
-                  : 'Order Confirmation'}
+                  : 'Checkout Review & Order Notice'}
               </h2>
             </div>
             <button
               type="button"
               onClick={() => {
                 setIsCartOpen(false);
-                if (checkoutStep === 'demo_success') setCheckoutStep('cart');
+                setCheckoutStep('cart');
               }}
               aria-label="Close cart drawer"
               className="p-1.5 rounded-full text-[#8A5934] hover:text-[#3A1E0E] hover:bg-[#FAF6F0] transition-colors focus-visible:ring-2 focus-visible:ring-terracotta-500"
@@ -127,12 +118,12 @@ export const CartDrawer: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex justify-between font-medium">
                     <span>Add {formatCurrency(amountNeededForFreeShipping, true)} more for Free Shipping</span>
-                    <span className="font-bold">{Math.round((subtotal / 75) * 100)}%</span>
+                    <span className="font-bold">{Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100)}%</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white overflow-hidden">
                     <div
                       className="h-full bg-terracotta-500 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, (subtotal / 75) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)}%` }}
                     />
                   </div>
                 </div>
@@ -142,74 +133,26 @@ export const CartDrawer: React.FC = () => {
 
           {/* Cart Content Area */}
           <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
-            {checkoutStep === 'demo_success' ? (
-              <div className="py-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <div className="inline-block px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-900 text-xs font-bold">
-                  Frontend Demonstration Order
-                </div>
-                <h3 className="font-serif text-xl font-bold text-[#3A1E0E]">
-                  Demo Order {demoOrderRef} Simulated
-                </h3>
-                <p className="text-xs text-[#6E4022] max-w-xs mx-auto leading-relaxed">
-                  This prototype simulates a complete customer checkout journey. In production, real payment verification will be handled by a secure gateway (e.g. Stripe).
-                </p>
-
-                <div className="p-4 rounded-2xl bg-white border border-[#EBDCCE] text-left text-xs space-y-2 max-w-sm mx-auto">
-                  <div className="flex justify-between font-semibold text-[#3A1E0E]">
-                    <span>Items Ordered:</span>
-                    <span>{cart.reduce((s, i) => s + i.quantity, 0)} bags</span>
-                  </div>
-                  <div className="flex justify-between text-[#6E4022]">
-                    <span>Simulated Total:</span>
-                    <span className="font-bold text-terracotta-700">{formatCurrency(finalTotal, true)}</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex flex-col gap-2 max-w-xs mx-auto">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCheckoutStep('cart');
-                      setIsCartOpen(false);
-                    }}
-                    className="w-full py-2.5 rounded-full bg-[#2B170E] text-white text-xs font-bold hover:bg-[#3A1E0E] transition-colors"
-                  >
-                    Keep Cart & Return
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearCart();
-                      setCheckoutStep('cart');
-                      setIsCartOpen(false);
-                      showToast('Cart cleared after demo order');
-                    }}
-                    className="w-full py-2.5 rounded-full border border-[#D5BC9F] text-[#6E4022] hover:bg-white text-xs font-bold transition-colors"
-                  >
-                    Clear Cart & Start New Order
-                  </button>
-                </div>
-              </div>
-            ) : checkoutStep === 'checkout_preview' ? (
+            {checkoutStep === 'checkout_preview' ? (
               <div className="space-y-4">
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 flex items-start gap-2.5">
-                  <ShieldCheck className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <strong className="block font-bold">Integration Notice</strong>
-                    <span>
-                      Live payments require backend integration (e.g. Stripe or Shopify). Click below to simulate order completion without losing cart items.
-                    </span>
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-950">
+                    <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>Checkout & Order Placement Notice</span>
                   </div>
+                  <p className="leading-relaxed text-[#6E4022]">
+                    Online payment verification and automated order dispatch (via <code>POST /api/v1/orders</code>) are scheduled for the next backend release.
+                  </p>
+                  <p className="leading-relaxed text-[#6E4022]">
+                    Your selected coffees, roast grinds, and bag sizes remain safely saved in your cart.
+                  </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white border border-[#EBDCCE] space-y-3">
                   <h4 className="font-serif font-bold text-sm text-[#3A1E0E] border-b border-[#EBDCCE] pb-2">
-                    Order Items Breakdown
+                    Order Items Breakdown ({cart.reduce((s, i) => s + i.quantity, 0)} bags)
                   </h4>
-                  <div className="space-y-2 divide-y divide-[#FAF6F0]">
+                  <div className="space-y-2 divide-y divide-[#FAF6F0] max-h-60 overflow-y-auto">
                     {cart.map((item, idx) => {
                       const unitPrice = calculateProductPrice(item.product.price, item.size);
                       const lineTotal = unitPrice * item.quantity;
@@ -222,10 +165,33 @@ export const CartDrawer: React.FC = () => {
                               {item.frequency && ` • ${item.frequency.replace('_', ' ')}`}
                             </div>
                           </div>
-                          <div className="font-extrabold text-[#2B170E]">{formatCurrency(lineTotal, true)}</div>
+                          <div className="font-extrabold text-[#2B170E]">{formatCurrency(lineTotal)}</div>
                         </div>
                       );
                     })}
+                  </div>
+
+                  <div className="pt-2 border-t border-[#EBDCCE] space-y-1 text-xs">
+                    <div className="flex justify-between text-[#6E4022]">
+                      <span>Subtotal:</span>
+                      <span className="font-semibold text-[#2B170E]">{formatCurrency(subtotal)}</span>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-700">
+                        <span>Discount ({discountPercent}%):</span>
+                        <span>-{formatCurrency(discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-[#6E4022]">
+                      <span>Delivery:</span>
+                      <span className="font-semibold text-[#2B170E]">
+                        {shippingAmount === 0 ? 'FREE' : formatCurrency(shippingAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm font-extrabold text-[#2B170E] pt-1.5 border-t border-[#FAF6F0]">
+                      <span>Total Amount:</span>
+                      <span className="text-terracotta-700">{formatCurrency(finalTotal)}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -233,17 +199,17 @@ export const CartDrawer: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setCheckoutStep('cart')}
-                    className="flex-1 py-2.5 rounded-xl border border-[#D5BC9F] text-[#6E4022] hover:bg-white text-xs font-bold"
+                    className="flex-1 py-2.5 rounded-xl border border-[#D5BC9F] text-[#6E4022] hover:bg-white text-xs font-bold transition-colors"
                   >
-                    Back to Cart
+                    ← Back to Cart
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleSimulateOrder}
-                    className="flex-1 py-2.5 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-white text-xs font-bold shadow-soft"
+                  <Link
+                    to="/shop"
+                    onClick={() => setIsCartOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-colors text-center shadow-soft"
                   >
-                    Simulate Demo Order
-                  </button>
+                    Continue Shopping
+                  </Link>
                 </div>
               </div>
             ) : cart.length === 0 ? (

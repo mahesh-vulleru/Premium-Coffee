@@ -6,6 +6,7 @@ import {
   login,
   logout,
   getMe,
+  updateProfile,
 } from '../controllers/auth.controller.js';
 import {
   validateBody,
@@ -19,6 +20,12 @@ import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 
 // Registration endpoints
+router.post(
+  '/register',
+  validateBody(RegisterCustomerSchema),
+  registerCustomer
+);
+
 router.post(
   '/register/customer',
   validateBody(RegisterCustomerSchema),
@@ -41,6 +48,7 @@ router.post(
 router.post('/login', validateBody(LoginSchema), login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, getMe);
+router.put('/profile', requireAuth, updateProfile);
 
 export default router;
 

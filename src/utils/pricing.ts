@@ -6,8 +6,8 @@ export const BAG_SIZE_MULTIPLIERS: Record<CartItem['size'], number> = {
   '1kg': 3.4,
 };
 
-export const FREE_SHIPPING_THRESHOLD = 75;
-export const STANDARD_SHIPPING_FEE = 9;
+export const FREE_SHIPPING_THRESHOLD = 999;
+export const STANDARD_SHIPPING_FEE = 99;
 export const SUBSCRIPTION_DISCOUNT_PERCENT = 15;
 
 /**
@@ -32,14 +32,16 @@ export function calculateOriginalProductPrice(
 }
 
 /**
- * Formats a numeric price into standard USD currency string ($XX.XX or $XX).
+ * Formats a numeric price into standard Indian Rupee currency string (e.g. ₹650 or ₹1,200.50).
+ * Uses JavaScript's Intl.NumberFormat with locale en-IN and currency INR.
  */
-export function formatCurrency(amount: number, forceDecimals = false): string {
-  if (forceDecimals || amount % 1 !== 0) {
-    return `$${amount.toFixed(2)}`;
-  }
-  return `$${amount}`;
-}
+export const formatCurrency = (amount: number, forceDecimals = false): string =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+    minimumFractionDigits: forceDecimals ? 2 : (amount % 1 === 0 ? 0 : 2),
+  }).format(amount);
 
 export interface CartCalculationResult {
   subtotal: number;

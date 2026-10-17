@@ -3,6 +3,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Clock, ShoppingBag } from 'lucid
 import { BEST_DEAL_CAROUSEL_PRODUCTS } from '../data/coffeeData';
 import { useCart } from '../context/CartContext';
 import { handleImageError } from '../utils/imageFallback';
+import { formatCurrency } from '../utils/pricing';
 
 export const DealsGrid: React.FC = () => {
   const { addToCart } = useCart();
@@ -264,7 +265,7 @@ export const DealsGrid: React.FC = () => {
                         {prod.name}
                       </h4>
                       <div className="text-xs font-black text-terracotta-600 mt-0.5">
-                        ${prod.price}
+                        {formatCurrency(prod.price)}
                       </div>
                     </div>
 

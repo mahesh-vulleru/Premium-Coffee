@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Sparkles, Award, ShieldCheck, DollarSign } from 'lucide-react';
+import { ChevronDown, Sparkles, Award, ShieldCheck, IndianRupee } from 'lucide-react';
 import { handleImageError } from '../utils/imageFallback';
 
 export const BeanToBrewStory: React.FC = () => {
@@ -153,7 +153,7 @@ export const BeanToBrewStory: React.FC = () => {
                     {/* Box 4: Affordable Price */}
                     <div className="p-4 rounded-xl border border-[#EBDCCE] bg-[#FAF6F0] flex flex-col justify-between hover:border-terracotta-400 transition-colors">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <DollarSign className="w-4 h-4 text-terracotta-500" />
+                        <IndianRupee className="w-4 h-4 text-terracotta-500" />
                         <h4 className="font-serif font-bold text-sm text-[#3A1E0E]">
                           Affordable Price
                         </h4>

@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx src/scripts/seed.ts",
+    "seed:products": "tsx src/scripts/seed-products.ts",
+    "provision:admin": "tsx src/scripts/provision-admin.ts",
     "test": "tsx test-connection.ts",
     "lint": "oxlint"
   },

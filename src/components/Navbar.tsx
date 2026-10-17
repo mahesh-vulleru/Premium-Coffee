@@ -63,8 +63,7 @@ export const Navbar: React.FC = () => {
       <div className="bg-[#2B170E] text-[#D5BC9F] text-xs py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-terracotta-500 animate-pulse" />
         <span>
-          Freshly Roasted This Morning • Free Express Shipping Over $75 with code{' '}
-          <strong className="text-white font-bold">FIREDUP15</strong>
+          Freshly Roasted This Morning • Free Express Shipping on Orders Over ₹999
         </span>
       </div>
 
@@ -142,12 +141,11 @@ export const Navbar: React.FC = () => {
                     Matching Blends
                   </div>
                   {searchResults.map((item) => (
-                    <button
+                    <Link
                       key={item.id}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setQuickViewProduct(item);
+                      to={`/product/${item.id}`}
+                      onMouseDown={() => {
+                        setSearchQuery('');
                         setIsSearchFocused(false);
                       }}
                       className="w-full text-left p-2.5 hover:bg-[#FAF6F0] rounded-xl flex items-center gap-3 transition-colors"
@@ -165,7 +163,7 @@ export const Navbar: React.FC = () => {
                         </div>
                       </div>
                       <ArrowRight className="w-3.5 h-3.5 text-terracotta-500 flex-shrink-0" />
-                    </button>
+                    </Link>
                   ))}
                 </div>
               )}

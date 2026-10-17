@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useId } from 'react';
-import { X, Star, ShoppingBag, Heart } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { X, Star, ShoppingBag, Heart, ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import type { CoffeeProduct, GrindOption, BagSize } from '../types/coffee';
 import { calculateProductPrice, calculateOriginalProductPrice, formatCurrency } from '../utils/pricing';
@@ -199,6 +200,17 @@ const QuickViewContent: React.FC<QuickViewContentProps> = ({ product, onClose, t
             >
               <Heart className={`w-4 h-4 ${inWishlist ? 'fill-rose-600' : ''}`} />
             </button>
+          </div>
+
+          <div className="pt-1 text-center">
+            <Link
+              to={`/product/${product.id}`}
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-terracotta-600 hover:text-terracotta-700 hover:underline"
+            >
+              <span>View Full Roaster Details & Brewing Guide</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </div>
