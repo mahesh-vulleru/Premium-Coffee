@@ -6,6 +6,17 @@ export interface ToastState {
   type?: 'success' | 'info' | 'error';
 }
 
+export interface PendingAuthAction {
+  type: 'cart' | 'wishlist';
+  product: CoffeeProduct;
+  quantity?: number;
+  grind?: GrindOption;
+  size?: BagSize;
+  frequency?: SubscriptionFrequency;
+  returnUrl?: string;
+  createdAt: number;
+}
+
 export interface CartContextType {
   cart: CartItem[];
   addToCart: (
@@ -45,6 +56,13 @@ export interface CartContextType {
   // Account modal
   isAccountModalOpen: boolean;
   setIsAccountModalOpen: (open: boolean) => void;
+
+  // Auth Required Modal & Pending Action
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  pendingAuthAction: PendingAuthAction | null;
+  setPendingAuthAction: (action: PendingAuthAction | null) => void;
+  clearPendingAuthAction: () => void;
 }
 
 export const CartContext = createContext<CartContextType | undefined>(undefined);

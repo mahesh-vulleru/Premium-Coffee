@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Mail,
   ArrowRight,
@@ -13,6 +13,8 @@ import { useAuth } from '../context/useAuth';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
   const { login } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -51,8 +53,9 @@ export const LoginPage: React.FC = () => {
             navigate('/dashboard/wholesale');
           }
         } else {
-          // Regular customer
-          navigate('/dashboard/customer');
+          // Regular customer: redirect back to intended page if returnUrl provided
+          const target = redirectParam && redirectParam.startsWith('/') ? redirectParam : '/dashboard/customer';
+          navigate(target);
         }
       } else {
         setError(res.error || 'Invalid credentials');

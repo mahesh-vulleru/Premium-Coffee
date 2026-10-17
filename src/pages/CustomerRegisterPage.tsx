@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Phone, Lock, MapPin, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useCart } from '../context/useCart';
 
 export const CustomerRegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
   const { registerCustomer } = useAuth();
   const { showToast } = useCart();
 
@@ -66,7 +68,8 @@ export const CustomerRegisterPage: React.FC = () => {
 
     if (result.success) {
       showToast(`Welcome, ${result.user?.name}! Your customer account is active.`);
-      navigate('/dashboard/customer');
+      const target = redirectParam && redirectParam.startsWith('/') ? redirectParam : '/dashboard/customer';
+      navigate(target);
     } else {
       setErrorMessage(result.error || 'Failed to complete registration.');
     }

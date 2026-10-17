@@ -1,8 +1,13 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { User, Building2, ShieldCheck, ArrowRight, Sparkles, Check, KeyRound } from 'lucide-react';
 
 export const RegisterSelectPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const customerRegisterUrl = redirectParam
+    ? `/register/customer?redirect=${encodeURIComponent(redirectParam)}`
+    : '/register/customer';
   return (
     <div className="min-h-screen bg-[#FAF6F0] text-[#231208] flex flex-col justify-between py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto w-full space-y-10">
@@ -71,7 +76,7 @@ export const RegisterSelectPage: React.FC = () => {
 
             <div className="pt-6">
               <Link
-                to="/register/customer"
+                to={customerRegisterUrl}
                 className="w-full py-3 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-glow transition-all"
               >
                 <span>Register as Customer</span>

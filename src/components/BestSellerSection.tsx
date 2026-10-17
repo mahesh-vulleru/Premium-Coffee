@@ -259,7 +259,7 @@ export const BestSellerSection: React.FC = () => {
             </div>
 
             {/* In-Section Live Search */}
-            <div className="relative min-w-[260px] sm:min-w-[300px]">
+            <div className="relative w-full sm:w-auto min-w-0 sm:min-w-[260px] md:min-w-[300px]">
               <Search className="w-4 h-4 text-[#AF8359] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"

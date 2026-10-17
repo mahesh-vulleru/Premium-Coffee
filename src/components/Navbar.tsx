@@ -12,6 +12,8 @@ import {
   LogOut,
   CheckCircle,
   Clock,
+  MapPin,
+  User,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/useAuth';
@@ -400,65 +402,86 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-      {/* Account Profile Modal */}
+      {/* Account Profile Modal / Dropdown */}
       {showAccountModal && currentUser && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-[#140A04]/60 backdrop-blur-sm flex items-center justify-center p-4"
+          aria-label="User Account Summary"
+          className="fixed inset-0 z-50 overflow-hidden"
         >
-          <div onClick={() => setShowAccountModal(false)} className="fixed inset-0" aria-hidden="true" />
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-[#EBDCCE] space-y-4 relative z-10 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-full bg-terracotta-50 text-terracotta-600 flex items-center justify-center font-bold text-base">
-                  {currentUser.name.charAt(0)}
+          {/* Subtle backdrop: clicking outside closes popup */}
+          <div
+            onClick={() => setShowAccountModal(false)}
+            className="fixed inset-0 bg-[#140A04]/30 backdrop-blur-[2px] transition-opacity"
+            aria-hidden="true"
+          />
+
+          {/* Account popup container: positioned directly below the navbar, staying within viewport with internal scroll */}
+          <div className="fixed top-[92px] sm:top-[104px] right-3 sm:right-6 lg:right-8 left-3 sm:left-auto w-auto sm:w-[420px] max-w-md max-h-[calc(100vh-7.5rem)] overflow-y-auto overscroll-contain z-50 bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#EBDCCE] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EBDCCE]">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-terracotta-500 to-amber-600 text-white flex items-center justify-center font-bold text-lg font-serif shadow-md border border-white/20 flex-shrink-0">
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'C'}
                 </div>
-                <div>
-                  <h3 className="font-serif font-bold text-base text-[#3A1E0E]">
+                <div className="space-y-0.5">
+                  <h3 className="font-serif font-bold text-base sm:text-lg text-[#3A1E0E] leading-tight">
                     {currentUser.name}
                   </h3>
-                  <span className="text-[11px] text-[#8A5934]">{currentUser.email}</span>
+                  <p className="text-xs text-[#8A5934] break-all">{currentUser.email}</p>
+                  {currentUser.phone && (
+                    <p className="text-[11px] text-[#6E4022] font-medium">{currentUser.phone}</p>
+                  )}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAccountModal(false)}
-                className="text-[#8A5934] hover:text-[#3A1E0E]"
+                className="p-1 rounded-xl text-[#8A5934] hover:text-[#3A1E0E] hover:bg-[#FAF6F0] transition-colors"
+                aria-label="Close account modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Role & Privileges Box */}
-            <div className="p-3.5 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-stone-500 uppercase text-[10px] font-bold tracking-wider">Account Role</span>
+            <div className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs space-y-3">
+              {/* Account Role */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[#8A5934] uppercase text-[10px] font-bold tracking-wider">
+                  Account Role:
+                </span>
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
                     currentUser.role === 'admin'
                       ? 'bg-purple-100 text-purple-900 border border-purple-200'
                       : currentUser.role === 'wholesale'
                       ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                      : 'bg-stone-200 text-stone-800'
+                      : 'bg-terracotta-100 text-terracotta-800 border border-terracotta-200'
                   }`}
                 >
-                  {currentUser.role}
+                  {currentUser.role === 'wholesale'
+                    ? 'Wholesale Partner'
+                    : currentUser.role === 'admin'
+                    ? 'Administrator'
+                    : 'Customer Member'}
                 </span>
               </div>
 
+              {/* Wholesale Details */}
               {currentUser.role === 'wholesale' && (
-                <div className="space-y-1.5 pt-1.5 border-t border-[#EBDCCE]">
+                <div className="space-y-1.5 pt-2 border-t border-[#EBDCCE]">
                   <div className="flex justify-between">
-                    <span className="text-stone-500">Business:</span>
-                    <strong className="text-[#3A1E0E]">{currentUser.wholesaleDetails?.businessName}</strong>
+                    <span className="text-[#8A5934]">Business:</span>
+                    <strong className="text-[#3A1E0E]">{currentUser.wholesaleDetails?.businessName || '—'}</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-stone-500">Tax ID:</span>
-                    <strong className="text-[#3A1E0E] font-mono">{currentUser.wholesaleDetails?.taxId}</strong>
+                    <span className="text-[#8A5934]">Tax ID / GST:</span>
+                    <strong className="text-[#3A1E0E] font-mono">{currentUser.wholesaleDetails?.taxId || '—'}</strong>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Status:</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#8A5934]">Status:</span>
                     {currentUser.wholesaleDetails?.status === 'approved' ? (
                       <span className="text-emerald-700 font-bold inline-flex items-center gap-1">
                         <CheckCircle className="w-3.5 h-3.5" /> Approved (35% Off)
@@ -472,24 +495,72 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
 
-              {currentUser.role === 'customer' && currentUser.shippingAddress && (
-                <div className="space-y-1 pt-1.5 border-t border-[#EBDCCE]">
-                  <span className="text-stone-500 block text-[10px] uppercase font-bold">Default Delivery Address</span>
-                  <div className="text-stone-700 leading-tight">
-                    {currentUser.shippingAddress.street}, {currentUser.shippingAddress.city},{' '}
-                    {currentUser.shippingAddress.state} {currentUser.shippingAddress.postalCode}
+              {/* Customer Default Delivery Address Card */}
+              {currentUser.role === 'customer' && (
+                <div className="pt-2 border-t border-[#EBDCCE] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8A5934] uppercase text-[10px] font-bold tracking-wider flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-terracotta-600" />
+                      Default Delivery Address:
+                    </span>
+                    <Link
+                      to="/dashboard/customer"
+                      onClick={() => setShowAccountModal(false)}
+                      className="text-[11px] font-bold text-terracotta-600 hover:text-terracotta-700 hover:underline"
+                    >
+                      Edit →
+                    </Link>
                   </div>
+
+                  {currentUser.shippingAddress?.street ? (
+                    <div className="p-3.5 rounded-2xl bg-white border border-[#EBDCCE] text-xs text-[#3A1E0E] leading-relaxed space-y-1 shadow-xs">
+                      <div className="font-bold text-[#2B170E] flex items-center justify-between pb-1 border-b border-[#FAF6F0]">
+                        <span>{currentUser.name}</span>
+                        {currentUser.phone && (
+                          <span className="text-[#8A5934] font-normal">{currentUser.phone}</span>
+                        )}
+                      </div>
+                      <div className="pt-0.5 text-[#2B170E] font-medium leading-snug">
+                        {currentUser.shippingAddress.street}
+                      </div>
+                      {currentUser.shippingAddress.apartment && (
+                        <div className="text-[#6E4022] leading-snug">
+                          {currentUser.shippingAddress.apartment}
+                        </div>
+                      )}
+                      <div className="text-[#532D16] font-medium">
+                        {currentUser.shippingAddress.city}, {currentUser.shippingAddress.state}
+                        {currentUser.shippingAddress.postalCode ? ` - ${currentUser.shippingAddress.postalCode}` : ''}
+                      </div>
+                      {currentUser.shippingAddress.country && (
+                        <div className="text-[10px] text-[#8A5934] font-semibold uppercase tracking-wider pt-0.5">
+                          {currentUser.shippingAddress.country}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-white border border-dashed border-[#EBDCCE] text-center">
+                      <p className="text-xs text-[#8A5934]">No delivery address saved yet.</p>
+                      <Link
+                        to="/dashboard/customer"
+                        onClick={() => setShowAccountModal(false)}
+                        className="mt-1 inline-block text-[11px] font-bold text-terracotta-600 hover:underline"
+                      >
+                        + Add Delivery Address
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Quick Links */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2.5 pt-1">
               {currentUser.role === 'admin' && (
                 <Link
                   to="/dashboard/admin"
                   onClick={() => setShowAccountModal(false)}
-                  className="w-full py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-3 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <ShieldAlert className="w-4 h-4 text-amber-400" />
                   <span>Admin Operations Command</span>
@@ -500,7 +571,7 @@ export const Navbar: React.FC = () => {
                 <Link
                   to="/dashboard/wholesale"
                   onClick={() => setShowAccountModal(false)}
-                  className="w-full py-2.5 rounded-xl bg-amber-900 hover:bg-amber-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-3 rounded-xl bg-amber-900 hover:bg-amber-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <ShieldAlert className="w-4 h-4 text-amber-300" />
                   <span>Wholesale Partner Portal</span>
@@ -511,16 +582,20 @@ export const Navbar: React.FC = () => {
                 <Link
                   to="/dashboard/customer"
                   onClick={() => setShowAccountModal(false)}
-                  className="w-full py-2.5 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-3 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold flex items-center justify-between px-4 transition-all shadow-sm group"
                 >
-                  <span>My Account Dashboard</span>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-amber-400" />
+                    <span>My Account Dashboard</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#D5BC9F] group-hover:translate-x-0.5 transition-transform" />
                 </Link>
               )}
 
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="w-full py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                className="w-full py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-red-200"
               >
                 <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>

@@ -410,20 +410,31 @@ export const CustomerDashboardPage: React.FC = () => {
                     </div>
 
                     {currentUser.shippingAddress?.street ? (
-                      <div className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs text-[#532D16] space-y-1">
-                        <div className="font-bold text-[#3A1E0E]">{currentUser.name}</div>
-                        <div className="text-[#6E4022]">{currentUser.phone}</div>
-                        <div className="pt-1">{currentUser.shippingAddress.street}</div>
-                        {currentUser.shippingAddress.apartment && (
-                          <div>{currentUser.shippingAddress.apartment}</div>
+                      <div className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs text-[#532D16] space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[#3A1E0E] text-sm">{currentUser.name}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-700 bg-terracotta-100/70 px-2 py-0.5 rounded border border-terracotta-200">
+                            Primary
+                          </span>
+                        </div>
+                        {currentUser.phone && (
+                          <div className="text-xs text-[#6E4022] font-medium">{currentUser.phone}</div>
                         )}
-                        <div>
-                          {currentUser.shippingAddress.city}, {currentUser.shippingAddress.state}{' '}
-                          {currentUser.shippingAddress.postalCode}
+                        <div className="pt-1 text-[#2B170E] font-medium leading-relaxed">
+                          {currentUser.shippingAddress.street}
                         </div>
-                        <div className="text-[#8A5934] font-medium pt-1">
-                          {currentUser.shippingAddress.country}
+                        {currentUser.shippingAddress.apartment && (
+                          <div className="text-[#6E4022]">{currentUser.shippingAddress.apartment}</div>
+                        )}
+                        <div className="text-[#3A1E0E]">
+                          {currentUser.shippingAddress.city}, {currentUser.shippingAddress.state}
+                          {currentUser.shippingAddress.postalCode ? ` - ${currentUser.shippingAddress.postalCode}` : ''}
                         </div>
+                        {currentUser.shippingAddress.country && (
+                          <div className="text-[#8A5934] font-medium pt-0.5">
+                            {currentUser.shippingAddress.country}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="p-5 rounded-2xl bg-[#FAF6F0] border border-dashed border-[#EBDCCE] text-center space-y-2">
@@ -978,7 +989,11 @@ export const CustomerDashboardPage: React.FC = () => {
                     <div className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span className="font-bold text-[#532D16]">Account Role</span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-terracotta-50 text-terracotta-700 border border-terracotta-200 self-start sm:self-auto">
-                        {currentUser.role}
+                        {currentUser.role === 'customer'
+                          ? 'Customer Member'
+                          : currentUser.role === 'wholesale'
+                          ? 'Wholesale Partner'
+                          : 'Administrator'}
                       </span>
                     </div>
 

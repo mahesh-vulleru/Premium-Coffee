@@ -7,6 +7,7 @@ import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { QuickViewModal } from './components/QuickViewModal';
+import { AuthRequiredModal } from './components/AuthRequiredModal';
 import { Toast } from './components/Toast';
 
 // Pages
@@ -92,6 +93,7 @@ export function App() {
             <CartDrawer />
             <WishlistDrawer />
             <QuickViewModal />
+            <AuthRequiredModal />
             <Toast />
           </div>
         </CartProvider>

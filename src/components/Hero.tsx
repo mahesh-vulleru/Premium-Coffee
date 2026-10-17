@@ -110,10 +110,10 @@ export const Hero: React.FC = () => {
 
             {/* Large Brand Typography */}
             <div className="space-y-1 sm:space-y-2">
-              <h1 className="font-serif text-6xl sm:text-7xl md:text-8xl lg:text-[88px] font-black text-[#2B170E] tracking-tight leading-[0.92]">
+              <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-[#2B170E] tracking-tight leading-[0.95] break-words">
                 {slide.title}
               </h1>
-              <div className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-[#2B170E] flex items-center gap-3 flex-wrap leading-tight">
+              <div className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#2B170E] flex items-center gap-2 sm:gap-3 flex-wrap leading-tight">
                 <span className="text-terracotta-500 font-black tracking-wide">{slide.prefix}</span>
                 <span className="tracking-tight">{slide.subtitle}</span>
               </div>
@@ -125,13 +125,13 @@ export const Hero: React.FC = () => {
             </p>
 
             {/* Action Buttons: Discover Coffee & Carousel Navigation */}
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6 pt-2">
               <Link
                 to="/shop"
-                className="inline-flex items-center gap-4 pl-7 pr-2.5 py-2.5 sm:py-3 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-sm sm:text-base shadow-glow hover:shadow-elevated transition-all duration-300 transform hover:-translate-y-0.5 group"
+                className="inline-flex items-center gap-4 pl-6 sm:pl-7 pr-2.5 py-2.5 sm:py-3 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-sm sm:text-base shadow-glow hover:shadow-elevated transition-all duration-300 transform hover:-translate-y-0.5 group"
               >
                 <span className="tracking-wide">Discover Coffee</span>
-                <span className="w-10 h-10 rounded-full bg-[#2B170E] flex items-center justify-center text-white shadow-md group-hover:translate-x-1.5 transition-transform duration-300">
+                <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#2B170E] flex items-center justify-center text-white shadow-md group-hover:translate-x-1.5 transition-transform duration-300">
                   <ArrowRight className="w-4 h-4 text-white" />
                 </span>
               </Link>
@@ -211,8 +211,8 @@ export const Hero: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-t from-[#211007]/85 via-[#211007]/20 to-transparent pointer-events-none" />
 
               {/* Floating Coffee Pouch Mockup (Aurora Specialty Coffee) */}
-              <div className="absolute bottom-6 right-6 sm:bottom-8 sm:right-8 w-44 sm:w-56 p-3 sm:p-4 rounded-2xl bg-[#2B170E]/85 backdrop-blur-md border border-white/20 shadow-2xl animate-float">
-                <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-3 border border-white/10 shadow-inner">
+              <div className="absolute bottom-4 right-4 sm:bottom-8 sm:right-8 w-36 sm:w-52 p-2.5 sm:p-4 rounded-2xl bg-[#2B170E]/85 backdrop-blur-md border border-white/20 shadow-2xl animate-float">
+                <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-2 sm:mb-3 border border-white/10 shadow-inner">
                   <img
                     key={slide.pouchImage}
                     src={slide.pouchImage}
@@ -226,16 +226,16 @@ export const Hero: React.FC = () => {
                 </div>
 
                 <div className="text-white text-left space-y-0.5">
-                  <div className="text-[10px] uppercase font-bold tracking-widest text-amber-300">
+                  <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-amber-300">
                     {slide.pouchName}
                   </div>
-                  <div className="text-xs font-extrabold truncate text-white">{slide.blend}</div>
-                  <div className="text-[10px] text-[#D5BC9F] truncate">{slide.notes}</div>
+                  <div className="text-[11px] sm:text-xs font-extrabold truncate text-white">{slide.blend}</div>
+                  <div className="text-[9px] sm:text-[10px] text-[#D5BC9F] truncate">{slide.notes}</div>
                 </div>
               </div>
 
               {/* Top-Left Roaster Status Badge */}
-              <div className="absolute top-6 left-6 p-3.5 rounded-2xl bg-[#2B170E]/90 backdrop-blur-md border border-[#D5BC9F]/30 text-white max-w-[210px] shadow-lg">
+              <div className="absolute top-4 left-4 sm:top-6 sm:left-6 p-2.5 sm:p-3.5 rounded-2xl bg-[#2B170E]/90 backdrop-blur-md border border-[#D5BC9F]/30 text-white max-w-[170px] sm:max-w-[210px] shadow-lg">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
