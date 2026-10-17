@@ -8,8 +8,8 @@ import { useAuth } from './useAuth';
 export type { ToastState, CartContextType } from './useCart';
 export { useCart } from './useCart';
 
-const CART_STORAGE_KEY = 'firedup_cart';
-const WISHLIST_STORAGE_KEY = 'firedup_wishlist';
+const GUEST_CART_STORAGE_KEY = 'firedup_guest_cart';
+const GUEST_WISHLIST_STORAGE_KEY = 'firedup_guest_wishlist';
 
 function sanitizeLoadedCart(raw: unknown): CartItem[] {
   if (!Array.isArray(raw)) return [];
@@ -81,7 +81,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      const saved = localStorage.getItem(GUEST_CART_STORAGE_KEY);
       return saved ? sanitizeLoadedCart(JSON.parse(saved)) : [];
     } catch {
       return [];
@@ -90,7 +90,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [wishlist, setWishlist] = useState<CoffeeProduct[]>(() => {
     try {
-      const saved = localStorage.getItem(WISHLIST_STORAGE_KEY);
+      const saved = localStorage.getItem(GUEST_WISHLIST_STORAGE_KEY);
       return saved ? sanitizeLoadedWishlist(JSON.parse(saved)) : [];
     } catch {
       return [];
@@ -104,91 +104,107 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' | 'error' } | null>(null);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
-  // Sync to local storage for guests / offline access
+  // Persist only guest state locally. Authenticated carts and wishlists belong to the
+  // server-side user record and must never be written to a shared browser key.
   useEffect(() => {
+    if (currentUser) return;
     try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+      localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(cart));
     } catch (err) {
-      console.warn('Unable to persist cart to localStorage', err);
+      console.warn('Unable to persist guest cart to localStorage', err);
     }
-  }, [cart]);
+  }, [cart, currentUser]);
 
   useEffect(() => {
+    if (currentUser) return;
     try {
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(wishlist));
+      localStorage.setItem(GUEST_WISHLIST_STORAGE_KEY, JSON.stringify(wishlist));
     } catch (err) {
-      console.warn('Unable to persist wishlist to localStorage', err);
+      console.warn('Unable to persist guest wishlist to localStorage', err);
     }
-  }, [wishlist]);
+  }, [wishlist, currentUser]);
 
-  // Synchronize authenticated user's cart & wishlist with MongoDB backend
+  // Each authenticated account is hydrated exclusively from its own backend records.
+  // Never merge whatever happened to be in the previous account's React state.
   useEffect(() => {
     let isMounted = true;
-    if (!currentUser) return;
+
+    if (!currentUser) {
+      try {
+        const savedCart = localStorage.getItem(GUEST_CART_STORAGE_KEY);
+        const savedWishlist = localStorage.getItem(GUEST_WISHLIST_STORAGE_KEY);
+        setCart(savedCart ? sanitizeLoadedCart(JSON.parse(savedCart)) : []);
+        setWishlist(savedWishlist ? sanitizeLoadedWishlist(JSON.parse(savedWishlist)) : []);
+      } catch {
+        setCart([]);
+        setWishlist([]);
+      }
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    // Hide the previous account's private data while the new account is loading.
+    setCart([]);
+    setWishlist([]);
 
     async function hydrateUserCartAndWishlist() {
       try {
-        // 1. Hydrate Cart from backend
-        const cartRes = await fetch('/api/v1/cart', { credentials: 'include' });
-        if (cartRes.ok) {
+        const [cartRes, wishRes] = await Promise.all([
+          fetch('/api/v1/cart', { credentials: 'include' }),
+          fetch('/api/v1/wishlist', { credentials: 'include' }),
+        ]);
+
+        if (isMounted && cartRes.ok) {
           const cartData = await cartRes.json();
-          if (cartData.success && cartData.cart?.items && isMounted) {
-            if (cartData.cart.items.length > 0) {
-              const mappedCart: CartItem[] = cartData.cart.items.map((i: any) => ({
-                product: {
-                  ...i.product,
-                  id: i.product.id || i.product._id,
-                },
-                quantity: i.quantity,
-                grind: i.grind,
-                size: i.size,
-                frequency: i.frequency,
-              }));
-              setCart(mappedCart);
-            } else if (cart.length > 0) {
-              // Sync initial guest cart to user account
-              await fetch('/api/v1/cart/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ items: cart }),
-              });
-            }
+          if (cartData.success && Array.isArray(cartData.cart?.items)) {
+            const mappedCart: CartItem[] = cartData.cart.items.map((i: any) => ({
+              product: {
+                ...i.product,
+                id: i.product?.id || i.product?._id,
+              },
+              quantity: i.quantity,
+              grind: i.grind,
+              size: i.size,
+              frequency: i.frequency,
+            })).filter((item: CartItem) => Boolean(item.product.id));
+            setCart(mappedCart);
+          } else {
+            setCart([]);
           }
+        } else if (isMounted) {
+          setCart([]);
         }
 
-        // 2. Hydrate Wishlist from backend
-        const wishRes = await fetch('/api/v1/wishlist', { credentials: 'include' });
-        if (wishRes.ok) {
+        if (isMounted && wishRes.ok) {
           const wishData = await wishRes.json();
-          if (wishData.success && Array.isArray(wishData.wishlist) && isMounted) {
-            if (wishData.wishlist.length > 0) {
-              const mappedWishlist: CoffeeProduct[] = wishData.wishlist.map((p: any) => ({
-                ...p,
-                id: p.id || p._id,
-              }));
-              setWishlist(mappedWishlist);
-            } else if (wishlist.length > 0) {
-              await fetch('/api/v1/wishlist/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ productIds: wishlist.map((p) => p.id) }),
-              });
-            }
+          if (wishData.success && Array.isArray(wishData.wishlist)) {
+            const mappedWishlist: CoffeeProduct[] = wishData.wishlist.map((p: any) => ({
+              ...p,
+              id: p.id || p._id,
+            })).filter((p: CoffeeProduct) => Boolean(p.id));
+            setWishlist(mappedWishlist);
+          } else {
+            setWishlist([]);
           }
+        } else if (isMounted) {
+          setWishlist([]);
         }
       } catch (err) {
-        console.warn('[CartContext] Backend cart/wishlist sync failed:', err);
+        console.warn('[CartContext] Backend cart/wishlist hydration failed:', err);
+        if (isMounted) {
+          setCart([]);
+          setWishlist([]);
+        }
       }
     }
 
-    hydrateUserCartAndWishlist();
+    void hydrateUserCartAndWishlist();
 
     return () => {
       isMounted = false;
     };
-  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
