@@ -1,5 +1,5 @@
 /* oxlint-disable react/only-export-components */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { CoffeeProduct, CartItem, GrindOption, BagSize, SubscriptionFrequency } from '../types/coffee';
 import { COFFEE_PRODUCTS, SUBSCRIPTION_FEATURED_PRODUCT } from '../data/coffeeData';
 import { calculateCartSummary } from '../utils/pricing';
@@ -78,6 +78,7 @@ function sanitizeLoadedWishlist(raw: unknown): CoffeeProduct[] {
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
+  const lastAuthenticatedUserId = useRef<string | null>(currentUser?.id ?? null);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -107,7 +108,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Persist only guest state locally. Authenticated carts and wishlists belong to the
   // server-side user record and must never be written to a shared browser key.
   useEffect(() => {
-    if (currentUser) return;
+    if (currentUser || lastAuthenticatedUserId.current !== null) return;
     try {
       localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(cart));
     } catch (err) {
@@ -116,7 +117,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [cart, currentUser]);
 
   useEffect(() => {
-    if (currentUser) return;
+    if (currentUser || lastAuthenticatedUserId.current !== null) return;
     try {
       localStorage.setItem(GUEST_WISHLIST_STORAGE_KEY, JSON.stringify(wishlist));
     } catch (err) {
@@ -139,11 +140,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCart([]);
         setWishlist([]);
       }
+      lastAuthenticatedUserId.current = null;
       return () => {
         isMounted = false;
       };
     }
 
+    // Mark this account before effects can persist previous state as guest data.
+    lastAuthenticatedUserId.current = currentUser.id;
     // Hide the previous account's private data while the new account is loading.
     setCart([]);
     setWishlist([]);
