@@ -1,4 +1,16 @@
-export type UserRole = 'customer' | 'wholesale' | 'admin';
+export type UserRole = 'customer' | 'wholesale' | 'admin' | 'staff';
+
+export type StaffRole =
+  | 'owner'
+  | 'store_manager'
+  | 'finance_manager'
+  | 'roastery_staff'
+  | 'customer_support'
+  | 'wholesale_manager'
+  | 'marketing_manager'
+  | 'analyst';
+
+export type StaffStatus = 'pending' | 'active' | 'suspended' | 'deactivated';
 
 export type WholesaleStatus = 'pending' | 'approved' | 'rejected';
 
@@ -29,6 +41,13 @@ export interface User {
   name: string;
   phone: string;
   role: UserRole;
+  staffRole?: StaffRole;
+  permissions?: string[];
+  effectivePermissions?: string[];
+  staffStatus?: StaffStatus;
+  staffDepartment?: string;
+  staffApplicationNotes?: string;
+  lastLoginAt?: string;
   createdAt: string;
   shippingAddress?: ShippingAddress;
   wholesaleDetails?: WholesaleDetails;

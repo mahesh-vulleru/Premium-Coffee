@@ -13,7 +13,16 @@
     "server:seed": "npm --prefix server run seed",
     "server:seed-products": "npm --prefix server run seed:products",
     "server:provision-admin": "npm --prefix server run provision:admin",
-    "server:test": "npm --prefix server run test"
+    "server:test": "npm --prefix server run test",
+    "server:test-isolation": "npm --prefix server run test:isolation",
+    "server:test-wholesale": "npm --prefix server run test:wholesale",
+    "server:test-customer": "npm --prefix server run test:customer",
+    "server:test-maintenance": "npm --prefix server run test:maintenance",
+    "server:test-phase3": "npm --prefix server run test:phase3",
+    "server:test-cancellation": "npm --prefix server run test:cancellation",
+    "server:test-control-center": "npm --prefix server run test:control-center",
+    "server:clean-tests": "npm --prefix server run clean:tests",
+    "server:lint": "npm --prefix server run lint"
   },
   "dependencies": {
     "lucide-react": "^1.57.0",

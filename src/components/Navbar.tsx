@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -14,6 +14,7 @@ import {
   Clock,
   MapPin,
   User,
+  Package,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/useAuth';
@@ -38,6 +39,31 @@ export const Navbar: React.FC = () => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [topAnnouncement, setTopAnnouncement] = useState('Freshly Roasted This Morning • Free Express Shipping on Orders Over ₹999');
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadAnnouncement() {
+      try {
+        const res = await fetch('/api/v1/content');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.content)) {
+            const announcement = data.content.find((c: any) => c.contentType === 'announcement' || c.key === 'announcement_bar');
+            if (announcement && isMounted) {
+              setTopAnnouncement(announcement.title);
+            }
+          }
+        }
+      } catch {
+        // Fallback to default
+      }
+    }
+    loadAnnouncement();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const searchResults = searchQuery.trim()
     ? COFFEE_PRODUCTS.filter(
@@ -65,7 +91,7 @@ export const Navbar: React.FC = () => {
       <div className="bg-[#2B170E] text-[#D5BC9F] text-xs py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-terracotta-500 animate-pulse" />
         <span>
-          Freshly Roasted This Morning • Free Express Shipping on Orders Over ₹999
+          {topAnnouncement}
         </span>
       </div>
 
@@ -350,6 +376,15 @@ export const Navbar: React.FC = () => {
                       Open Admin Dashboard
                     </Link>
                   )}
+                  {currentUser.role === 'staff' && (
+                    <Link
+                      to="/dashboard/staff"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="p-2 bg-amber-800 text-white rounded-lg text-xs font-bold text-center"
+                    >
+                      Open Roastery Staff Queue
+                    </Link>
+                  )}
                   {currentUser.role === 'wholesale' && (
                     <Link
                       to="/dashboard/wholesale"
@@ -564,6 +599,17 @@ export const Navbar: React.FC = () => {
                 >
                   <ShieldAlert className="w-4 h-4 text-amber-400" />
                   <span>Admin Operations Command</span>
+                </Link>
+              )}
+
+              {currentUser.role === 'staff' && (
+                <Link
+                  to="/dashboard/staff"
+                  onClick={() => setShowAccountModal(false)}
+                  className="w-full py-3 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
+                >
+                  <Package className="w-4 h-4 text-amber-300" />
+                  <span>Roastery Staff Queue</span>
                 </Link>
               )}
 

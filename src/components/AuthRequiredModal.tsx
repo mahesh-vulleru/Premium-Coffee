@@ -4,6 +4,7 @@ import { Flame, X, ArrowRight, UserPlus, LogIn, Sparkles, Heart, ShoppingBag } f
 import { useCart } from '../context/useCart';
 import { formatCurrency, calculateProductPrice } from '../utils/pricing';
 import { handleImageError } from '../utils/imageFallback';
+import { getSafeInternalRedirect } from '../utils/authRedirect';
 
 export const AuthRequiredModal: React.FC = () => {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export const AuthRequiredModal: React.FC = () => {
   if (!isAuthModalOpen) return null;
 
   const currentPath = location.pathname + location.search;
-  const returnTarget = pendingAuthAction?.returnUrl || currentPath || '/';
+  const returnTarget = getSafeInternalRedirect(pendingAuthAction?.returnUrl || currentPath, '/');
   const encodedRedirect = encodeURIComponent(returnTarget);
 
   const handleSignIn = () => {

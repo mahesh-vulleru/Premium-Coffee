@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Product } from '../models/Product.js';
+import { getEffectiveProductPrice } from '../utils/pricingHelper.js';
 
 // GET /api/v1/products
 export async function getProducts(req: Request, res: Response) {
@@ -15,7 +16,10 @@ export async function getProducts(req: Request, res: Response) {
       limit = '50',
     } = req.query;
 
-    const filterQuery: Record<string, any> = {};
+    const filterQuery: Record<string, any> = {
+      isArchived: { $ne: true },
+      isPublished: { $ne: false },
+    };
 
     // Category filter
     if (category && category !== 'all') {
@@ -80,7 +84,16 @@ export async function getProducts(req: Request, res: Response) {
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum) || 1,
-      products: products.map((p) => p.toJSON()),
+      products: products.map((p) => {
+        const effective = getEffectiveProductPrice(p);
+        const json: any = p.toJSON();
+        json.effectivePrice = effective.effectivePrice;
+        if (effective.isSale) {
+          json.isSale = true;
+          json.salePrice = effective.salePrice;
+        }
+        return json;
+      }),
     });
   } catch (error: any) {
     console.error('[Product Controller] Error fetching products:', error);
@@ -102,10 +115,11 @@ export async function getProductById(req: Request, res: Response) {
       product = await Product.findById(id);
     }
 
-    // Fallback: search by name or legacy string id if not valid ObjectId
+    // Fallback: search by slug or name
     if (!product) {
       product = await Product.findOne({
         $or: [
+          { slug: id.toLowerCase() },
           { name: new RegExp(`^${id.replace(/-/g, ' ')}$`, 'i') },
         ],
       });
@@ -118,9 +132,25 @@ export async function getProductById(req: Request, res: Response) {
       });
     }
 
+    // Exclude unpublished or archived products from public customer retrieval
+    if (product.isArchived || product.isPublished === false) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product roast is currently unavailable in the catalogue.',
+      });
+    }
+
+    const effective = getEffectiveProductPrice(product);
+    const json: any = product.toJSON();
+    json.effectivePrice = effective.effectivePrice;
+    if (effective.isSale) {
+      json.isSale = true;
+      json.salePrice = effective.salePrice;
+    }
+
     return res.status(200).json({
       success: true,
-      product: product.toJSON(),
+      product: json,
     });
   } catch (error: any) {
     console.error('[Product Controller] Error fetching product by ID:', error);

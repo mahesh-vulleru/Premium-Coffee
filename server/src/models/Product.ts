@@ -6,7 +6,8 @@ export type CoffeeCategory =
   | 'moca'
   | 'latte'
   | 'americano'
-  | 'cold_brew';
+  | 'cold_brew'
+  | (string & {});
 
 export type RoastLevel = 'Light' | 'Medium' | 'Medium-Dark' | 'Dark';
 export type ProductTag = 'new_arrivals' | 'best_sellers' | 'top_rates';
@@ -36,6 +37,17 @@ export interface IProduct extends Document {
   origin: string;
   description: string;
   stockAvailable: number;
+  slug?: string;
+  isPublished: boolean;
+  isArchived: boolean;
+  lowStockThreshold: number;
+  reservedStock: number;
+  promotionPrice?: number;
+  promotionStartDate?: Date;
+  promotionEndDate?: Date;
+  availablePackSizes?: string[];
+  grindOptions?: string[];
+  costPrice?: number; // Roastery direct bean & packaging unit cost in INR
   brewGuide?: IBrewGuide;
   createdAt: Date;
   updatedAt: Date;
@@ -58,10 +70,11 @@ const ProductSchema = new Schema<IProduct>(
     category: {
       type: String,
       required: true,
-      enum: ['cappuccino', 'espresso', 'moca', 'latte', 'americano', 'cold_brew'],
+      trim: true,
       index: true,
     },
     price: { type: Number, required: true, min: 0 },
+    costPrice: { type: Number, min: 0 },
     originalPrice: { type: Number, min: 0 },
     rating: { type: Number, default: 5.0, min: 1, max: 5 },
     reviewsCount: { type: Number, default: 0, min: 0 },
@@ -85,6 +98,28 @@ const ProductSchema = new Schema<IProduct>(
     origin: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
     stockAvailable: { type: Number, required: true, default: 20, min: 0 },
+    lowStockThreshold: { type: Number, required: true, default: 10, min: 0 },
+    reservedStock: { type: Number, required: true, default: 0, min: 0 },
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      lowercase: true,
+    },
+    isPublished: { type: Boolean, required: true, default: true, index: true },
+    isArchived: { type: Boolean, required: true, default: false, index: true },
+    promotionPrice: { type: Number, min: 0 },
+    promotionStartDate: { type: Date },
+    promotionEndDate: { type: Date },
+    availablePackSizes: {
+      type: [String],
+      default: ['250g', '500g', '1kg'],
+    },
+    grindOptions: {
+      type: [String],
+      default: ['Whole Bean', 'French Press', 'Pour Over', 'Espresso', 'Cold Brew'],
+    },
     brewGuide: { type: BrewGuideSchema },
   },
   {

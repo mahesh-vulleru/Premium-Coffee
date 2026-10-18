@@ -11,6 +11,10 @@ async function bootstrap() {
     // 1. Connect to MongoDB
     await connectDB();
 
+    // Ensure shop default promotions, categories, and content
+    const { ensureShopDefaults } = await import('./utils/shopDefaults.js');
+    await ensureShopDefaults();
+
     // 2. Initialize Express application
     const app = createApp();
 

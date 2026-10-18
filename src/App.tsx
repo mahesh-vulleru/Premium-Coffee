@@ -27,6 +27,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
 import { WholesaleDashboardPage } from './pages/WholesaleDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { StaffDashboardPage } from './pages/StaffDashboardPage';
 
 // Scroll to top helper on route navigation
 function ScrollToTop() {
@@ -81,6 +82,7 @@ export function App() {
                 <Route path="/dashboard/customer" element={<CustomerDashboardPage />} />
                 <Route path="/dashboard/wholesale" element={<WholesaleDashboardPage />} />
                 <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
+                <Route path="/dashboard/staff" element={<StaffDashboardPage />} />
                 <Route path="/admin" element={<AdminDashboardPage />} />
 
                 {/* Fallback */}

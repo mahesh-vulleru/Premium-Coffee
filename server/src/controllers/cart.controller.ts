@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Cart, type ICart } from '../models/Cart.js';
 import { Product, type IProduct } from '../models/Product.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { getEffectiveProductPrice } from '../utils/pricingHelper.js';
 
 // Calculate cart pricing on the server based on authoritative database product prices
 function calculateCartPricing(cart: ICart) {
@@ -15,12 +16,14 @@ function calculateCartPricing(cart: ICart) {
     const product = item.product as unknown as IProduct;
     if (!product || !product.price) continue;
 
-    // Size multiplier: 250g = 1x, 500g = 1.85x, 1kg = 3.5x (matching frontend formula)
+    // Size multiplier: 250g = 1x, 500g = 1.85x, 1kg = 3.4x (matching frontend formula)
     let sizeMultiplier = 1;
     if (item.size === '500g') sizeMultiplier = 1.85;
-    else if (item.size === '1kg') sizeMultiplier = 3.5;
+    else if (item.size === '1kg') sizeMultiplier = 3.4;
 
-    const unitPrice = Math.round(product.price * sizeMultiplier);
+    const { effectivePrice, isSale, salePrice } = getEffectiveProductPrice(product);
+    const unitPrice = Math.round(effectivePrice * sizeMultiplier);
+    const regularUnitPrice = Math.round(product.price * sizeMultiplier);
     const lineTotal = unitPrice * item.quantity;
 
     subtotal += lineTotal;
@@ -34,6 +37,9 @@ function calculateCartPricing(cart: ICart) {
       size: item.size,
       frequency: item.frequency,
       unitPrice,
+      regularUnitPrice,
+      isSale,
+      salePrice,
       lineTotal,
     });
   }
@@ -93,6 +99,13 @@ export async function addToCart(req: AuthenticatedRequest, res: Response) {
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found in catalogue' });
+    }
+
+    if (product.isArchived || product.isPublished === false) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product roast is currently unpublished or unavailable for purchase.',
+      });
     }
 
     const qtyToAdd = Math.max(1, parseInt(quantity, 10) || 1);
@@ -165,7 +178,9 @@ export async function updateCartItem(req: AuthenticatedRequest, res: Response) {
     if (newQty <= 0) {
       cart.items.splice(itemIndex, 1);
     } else {
-      cart.items[itemIndex].quantity = newQty;
+      const product = await Product.findById(cart.items[itemIndex].product);
+      const maxStock = product && product.stockAvailable > 0 ? product.stockAvailable : 20;
+      cart.items[itemIndex].quantity = Math.min(newQty, maxStock);
     }
 
     await cart.save();

@@ -29,7 +29,7 @@ export const ShippingAddressSchema = z.object({
   city: z.string().min(2, 'City is required'),
   state: z.string().min(2, 'State / Province is required'),
   postalCode: z.string().min(3, 'Postal code is required'),
-  country: z.string().default('USA'),
+  country: z.string().default('India'),
 });
 
 export const RegisterCustomerSchema = z.object({
