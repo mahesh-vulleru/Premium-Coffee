@@ -9,6 +9,8 @@ import productRoutes from './routes/product.routes.js';
 import cartRoutes from './routes/cart.routes.js';
 import wishlistRoutes from './routes/wishlist.routes.js';
 import wholesaleRoutes from './routes/wholesale.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import newsletterRoutes from './routes/newsletter.routes.js';
 import {
   notFoundHandler,
   globalErrorHandler,
@@ -42,6 +44,8 @@ export function createApp(): Express {
   app.use('/api/v1/cart', cartRoutes);
   app.use('/api/v1/wishlist', wishlistRoutes);
   app.use('/api/v1/wholesale', wholesaleRoutes);
+  app.use('/api/v1/orders', orderRoutes);
+  app.use('/api/v1/newsletter', newsletterRoutes);
 
   // Fallback 404 & Centralized Error Handlers
   app.use(notFoundHandler);

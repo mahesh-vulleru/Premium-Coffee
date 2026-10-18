@@ -3,6 +3,10 @@ import { User } from '../models/User.js';
 import { Order } from '../models/Order.js';
 import { Cart } from '../models/Cart.js';
 import { Wishlist } from '../models/Wishlist.js';
+import { Newsletter } from '../models/Newsletter.js';
+import { Product } from '../models/Product.js';
+import { InventoryLog } from '../models/InventoryLog.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { env } from '../config/env.js';
 
 export const GENUINE_EMAILS = new Set([
@@ -77,6 +81,46 @@ export async function cleanupTestData() {
     // 4. Delete test users
     const deletedUsersResult = await User.deleteMany({ _id: { $in: testUserIds } });
     console.log(`✔ Cleaned ${deletedUsersResult.deletedCount} test fixture user accounts`);
+
+    // 5. Delete test newsletter subscriptions
+    if (testUserEmails.length > 0) {
+      const deletedNewsletterResult = await Newsletter.deleteMany({
+        $or: [
+          { email: { $in: testUserEmails } },
+          { email: { $regex: /(?:cust\.|test\.|cafe\.apex|\.\d{10,}@)/i } }
+        ]
+      });
+      console.log(`✔ Cleaned ${deletedNewsletterResult.deletedCount} test newsletter subscriptions`);
+    }
+
+    // 6. Delete test products
+    const deletedProductsResult = await Product.deleteMany({
+      $or: [
+        { name: { $regex: /^test\s+/i } },
+        { slug: { $regex: /^test-/i } },
+      ],
+    });
+    if (deletedProductsResult.deletedCount > 0) {
+      console.log(`✔ Cleaned ${deletedProductsResult.deletedCount} test products`);
+    }
+
+    // 7. Delete test inventory and audit logs
+    const deletedInvLogs = await InventoryLog.deleteMany({
+      $or: [
+        { productName: { $regex: /^test\s+/i } },
+        { 'actor.email': { $regex: /(?:cust\.|test\.|admin\.ws|temp\.admin|\.\d{10,}@)/i } },
+      ],
+    });
+    if (deletedInvLogs.deletedCount > 0) {
+      console.log(`✔ Cleaned ${deletedInvLogs.deletedCount} test inventory movement logs`);
+    }
+
+    const deletedAuditLogs = await AuditLog.deleteMany({
+      'actor.email': { $regex: /(?:cust\.|test\.|admin\.ws|temp\.admin|\.\d{10,}@)/i },
+    });
+    if (deletedAuditLogs.deletedCount > 0) {
+      console.log(`✔ Cleaned ${deletedAuditLogs.deletedCount} test audit logs`);
+    }
   } else {
     console.log('✔ No test fixtures found. Database already clean.');
   }

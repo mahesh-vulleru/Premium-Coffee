@@ -36,6 +36,16 @@ export interface IProduct extends Document {
   origin: string;
   description: string;
   stockAvailable: number;
+  slug?: string;
+  isPublished: boolean;
+  isArchived: boolean;
+  lowStockThreshold: number;
+  reservedStock: number;
+  promotionPrice?: number;
+  promotionStartDate?: Date;
+  promotionEndDate?: Date;
+  availablePackSizes?: string[];
+  grindOptions?: string[];
   brewGuide?: IBrewGuide;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +95,28 @@ const ProductSchema = new Schema<IProduct>(
     origin: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
     stockAvailable: { type: Number, required: true, default: 20, min: 0 },
+    lowStockThreshold: { type: Number, required: true, default: 10, min: 0 },
+    reservedStock: { type: Number, required: true, default: 0, min: 0 },
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      lowercase: true,
+    },
+    isPublished: { type: Boolean, required: true, default: true, index: true },
+    isArchived: { type: Boolean, required: true, default: false, index: true },
+    promotionPrice: { type: Number, min: 0 },
+    promotionStartDate: { type: Date },
+    promotionEndDate: { type: Date },
+    availablePackSizes: {
+      type: [String],
+      default: ['250g', '500g', '1kg'],
+    },
+    grindOptions: {
+      type: [String],
+      default: ['Whole Bean', 'French Press', 'Pour Over', 'Espresso', 'Cold Brew'],
+    },
     brewGuide: { type: BrewGuideSchema },
   },
   {

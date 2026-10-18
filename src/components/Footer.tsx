@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Flame, ArrowRight, Mail, CheckCircle2 } from 'lucide-react';
+import { Flame, ArrowRight, Mail, CheckCircle2, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -9,14 +9,36 @@ export const Footer: React.FC = () => {
   const { showToast } = useCart();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleNewsletter = (e: React.FormEvent) => {
+  const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = newsletterEmail.trim();
     if (!clean) return;
 
-    setIsSubscribed(true);
-    showToast('Subscribed (Demo): Welcome! Use promo code FIREDUP15 at checkout.');
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/v1/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: clean, source: 'footer' }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setIsSubscribed(true);
+        showToast(data.message || 'Subscribed! Use code FIREDUP15 at checkout.');
+      } else if (res.status === 409) {
+        setIsSubscribed(true);
+        showToast(data.error || 'Already subscribed! Use code FIREDUP15 at checkout.', 'info');
+      } else {
+        showToast(data.error || 'Failed to enroll in newsletter. Please try again.', 'error');
+      }
+    } catch {
+      showToast('Connection error. Please try again later.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleInfoLink = (title: string, message: string) => (e: React.MouseEvent) => {
@@ -61,10 +83,20 @@ export const Footer: React.FC = () => {
                 />
                 <button
                   type="submit"
-                  className="px-6 py-3 rounded-full bg-terracotta-600 hover:bg-terracotta-500 text-white font-bold text-xs shadow-glow transition-all whitespace-nowrap flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-terracotta-500"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 rounded-full bg-terracotta-600 hover:bg-terracotta-500 text-white font-bold text-xs shadow-glow transition-all whitespace-nowrap flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-terracotta-500 disabled:opacity-60"
                 >
-                  <span>Subscribe</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Enrolling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Subscribe</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
                 </button>
               </form>
             )}

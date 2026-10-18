@@ -5,6 +5,7 @@ import { Product, type IProduct } from '../models/Product.js';
 import { Cart, type ICart } from '../models/Cart.js';
 import { Order } from '../models/Order.js';
 import { User } from '../models/User.js';
+import { InventoryLog } from '../models/InventoryLog.js';
 
 // Convert pack size string to weight in kilograms
 export function getWeightInKg(size: string): number {
@@ -590,6 +591,35 @@ export async function createWholesaleOrder(req: AuthenticatedRequest, res: Respo
       orderStatus: 'received',
       notes: notes ? String(notes).trim() : undefined,
     });
+
+    // Record InventoryLog for each wholesale item deducted
+    try {
+      for (const item of orderItems) {
+        const prod = await Product.findById(item.product);
+        if (prod) {
+          await InventoryLog.create({
+            productId: item.product,
+            productName: item.productName,
+            previousStock: prod.stockAvailable + item.quantity,
+            newStock: prod.stockAvailable,
+            quantityChange: -item.quantity,
+            type: 'wholesale_order',
+            reason: `Wholesale B2B commercial order ${orderNumber}`,
+            orderId: order._id,
+            orderNumber,
+            actor: {
+              userId: req.user._id,
+              name: req.user.name,
+              email: req.user.email,
+              role: req.user.role || 'wholesale',
+            },
+            timestamp: new Date(),
+          });
+        }
+      }
+    } catch (logErr) {
+      console.warn('[Wholesale Controller] Warning: Failed to record order inventory logs:', logErr);
+    }
 
     // Clear cart after successful order creation
     cart.items = [];

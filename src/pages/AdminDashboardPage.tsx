@@ -21,9 +21,11 @@ import {
   Search,
   Eye,
   Boxes,
+  Wrench,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { formatCurrency } from '../utils/pricing';
+import { ShopMaintenanceSection } from '../components/ShopMaintenanceSection';
 
 interface AdminMetrics {
   applications: {
@@ -67,6 +69,7 @@ export const AdminDashboardPage: React.FC = () => {
   } = useAuth();
 
   const [notification, setNotification] = useState<string | null>(null);
+  const [adminNav, setAdminNav] = useState<'operations' | 'maintenance'>('operations');
 
   // Server-Authoritative Metrics
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -462,14 +465,46 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Section 1: Wholesale Applications Management */}
-        <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <h2 className="text-lg font-serif font-bold text-stone-100 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-amber-400" />
-                Commercial Wholesale Applications
-              </h2>
+        {/* Primary Admin Navigation: Operations vs Shop Maintenance */}
+        <div className="flex items-center gap-2 border-b border-stone-800 pb-2">
+          <button
+            type="button"
+            onClick={() => setAdminNav('operations')}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+              adminNav === 'operations'
+                ? 'bg-amber-500 text-stone-900 shadow-md font-extrabold'
+                : 'bg-stone-800/80 text-stone-300 hover:bg-stone-700/80 hover:text-stone-100'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            <span>Operations & Wholesale</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminNav('maintenance')}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+              adminNav === 'maintenance'
+                ? 'bg-amber-500 text-stone-900 shadow-md font-extrabold'
+                : 'bg-stone-800/80 text-stone-300 hover:bg-stone-700/80 hover:text-stone-100'
+            }`}
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Shop Maintenance</span>
+          </button>
+        </div>
+
+        {/* OPERATIONS & WHOLESALE VIEW */}
+        {adminNav === 'operations' && (
+          <div className="space-y-10">
+            {/* Section 1: Wholesale Applications Management */}
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h2 className="text-lg font-serif font-bold text-stone-100 flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-amber-400" />
+                    Commercial Wholesale Applications
+                  </h2>
               <p className="text-xs text-stone-400">
                 Review commercial tax identifiers, projected monthly volume, and facility delivery addresses before granting commercial access.
               </p>
@@ -917,6 +952,19 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           </div>
         </section>
+      </div>
+    )}
+
+    {/* SHOP MAINTENANCE VIEW */}
+    {adminNav === 'maintenance' && (
+      <ShopMaintenanceSection
+        onNotify={(msg) => {
+          setNotification(msg);
+          setTimeout(() => setNotification(null), 4000);
+          fetchAdminMetrics();
+        }}
+      />
+    )}
       </div>
 
       {/* Decline Reason Modal */}

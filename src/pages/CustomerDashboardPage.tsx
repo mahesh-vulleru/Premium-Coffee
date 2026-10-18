@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useCart } from '../context/CartContext';
@@ -23,6 +23,10 @@ import {
   Coffee,
   Truck,
   ExternalLink,
+  Mail,
+  Eye,
+  X,
+  Compass,
 } from 'lucide-react';
 
 type DashboardTab = 'overview' | 'profile' | 'orders' | 'wishlist' | 'subscriptions' | 'settings';
@@ -30,9 +34,22 @@ type DashboardTab = 'overview' | 'profile' | 'orders' | 'wishlist' | 'subscripti
 export const CustomerDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, isLoading, logout, updateProfile } = useAuth();
-  const { wishlist, cartCount, addToCart, toggleWishlist, setIsCartOpen, showToast } = useCart();
+  const {
+    wishlist,
+    cartCount,
+    cartTotal,
+    addToCart,
+    toggleWishlist,
+    setIsCartOpen,
+    showToast,
+  } = useCart();
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+
+  // Customer Orders State
+  const [orders, setOrders] = useState<any[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
   // Profile form state initialized from currentUser
   const [profileForm, setProfileForm] = useState(() => ({
@@ -45,9 +62,77 @@ export const CustomerDashboardPage: React.FC = () => {
     postalCode: currentUser?.shippingAddress?.postalCode || '',
     country: currentUser?.shippingAddress?.country || 'India',
   }));
+
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
+
+  // Address Country Confirmation State (for prompt when Indian state is paired with United States)
+  const [isUpdatingCountry, setIsUpdatingCountry] = useState(false);
+
+  // Newsletter State in Settings
+  const [newsletterEmail, setNewsletterEmail] = useState(currentUser?.email || '');
+  const [isNewsletterSubscribed, setIsNewsletterSubscribed] = useState(false);
+  const [isNewsletterLoading, setIsNewsletterLoading] = useState(false);
+
+  // Sync profile form state whenever currentUser updates
+  useEffect(() => {
+    if (currentUser) {
+      setProfileForm({
+        name: currentUser.name || '',
+        phone: currentUser.phone || '',
+        street: currentUser.shippingAddress?.street || '',
+        apartment: currentUser.shippingAddress?.apartment || '',
+        city: currentUser.shippingAddress?.city || '',
+        state: currentUser.shippingAddress?.state || '',
+        postalCode: currentUser.shippingAddress?.postalCode || '',
+        country: currentUser.shippingAddress?.country || 'India',
+      });
+      setNewsletterEmail(currentUser.email);
+    }
+  }, [currentUser]);
+
+  // Load customer orders from server
+  const fetchCustomerOrders = useCallback(async () => {
+    if (!currentUser || currentUser.role !== 'customer') return;
+    setIsOrdersLoading(true);
+    try {
+      const res = await fetch('/api/v1/orders', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setOrders(data.orders);
+        }
+      }
+    } catch (err) {
+      console.warn('[CustomerDashboard] Failed to fetch orders:', err);
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  }, [currentUser]);
+
+  // Load newsletter status
+  const checkNewsletterStatus = useCallback(async () => {
+    if (!currentUser?.email) return;
+    try {
+      const res = await fetch(`/api/v1/newsletter/status?email=${encodeURIComponent(currentUser.email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && typeof data.isSubscribed === 'boolean') {
+          setIsNewsletterSubscribed(data.isSubscribed);
+        }
+      }
+    } catch {
+      // non-blocking
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser?.role === 'customer') {
+      fetchCustomerOrders();
+      checkNewsletterStatus();
+    }
+  }, [currentUser, fetchCustomerOrders, checkNewsletterStatus]);
 
   // Loading skeleton state while session is being verified
   if (isLoading) {
@@ -84,7 +169,7 @@ export const CustomerDashboardPage: React.FC = () => {
           </div>
           <div className="pt-2 flex flex-col gap-2.5">
             <Link
-              to="/login"
+              to="/login?redirect=/dashboard/customer"
               className="w-full py-3 rounded-2xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
             >
               <span>Sign In to Your Account</span>
@@ -153,22 +238,50 @@ export const CustomerDashboardPage: React.FC = () => {
     navigate('/');
   };
 
+  // Form Validation & Submission for Profile / Address
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSavingProfile(true);
     setProfileSuccessMsg(null);
     setProfileErrorMsg(null);
 
+    // Strict Client Validation
+    if (!profileForm.name || profileForm.name.trim().length < 2) {
+      setProfileErrorMsg('Full name must be at least 2 characters.');
+      return;
+    }
+    if (!profileForm.phone || profileForm.phone.trim().length < 7) {
+      setProfileErrorMsg('Please provide a valid contact phone number (at least 7 characters).');
+      return;
+    }
+    if (!profileForm.street || profileForm.street.trim().length < 2) {
+      setProfileErrorMsg('Street address is required.');
+      return;
+    }
+    if (!profileForm.city || profileForm.city.trim().length < 2) {
+      setProfileErrorMsg('City is required.');
+      return;
+    }
+    if (!profileForm.state || profileForm.state.trim().length < 2) {
+      setProfileErrorMsg('State / Province is required.');
+      return;
+    }
+    if (!profileForm.postalCode || profileForm.postalCode.trim().length < 3) {
+      setProfileErrorMsg('Valid Postal / PIN code is required.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+
     const result = await updateProfile({
-      name: profileForm.name,
-      phone: profileForm.phone,
+      name: profileForm.name.trim(),
+      phone: profileForm.phone.trim(),
       shippingAddress: {
-        street: profileForm.street,
-        apartment: profileForm.apartment,
-        city: profileForm.city,
-        state: profileForm.state,
-        postalCode: profileForm.postalCode,
-        country: profileForm.country,
+        street: profileForm.street.trim(),
+        apartment: profileForm.apartment ? profileForm.apartment.trim() : '',
+        city: profileForm.city.trim(),
+        state: profileForm.state.trim(),
+        postalCode: profileForm.postalCode.trim(),
+        country: profileForm.country.trim() || 'India',
       },
     });
 
@@ -181,6 +294,71 @@ export const CustomerDashboardPage: React.FC = () => {
       setProfileErrorMsg(result.error || 'Failed to update profile details.');
     }
   };
+
+  // Customer One-Click Confirmation to update Country to India when Indian address detected with USA
+  const handleConfirmCountryAsIndia = async () => {
+    if (!currentUser.shippingAddress) return;
+    setIsUpdatingCountry(true);
+    const result = await updateProfile({
+      shippingAddress: {
+        ...currentUser.shippingAddress,
+        country: 'India',
+      },
+    });
+    setIsUpdatingCountry(false);
+    if (result.success) {
+      showToast('Delivery country updated to India successfully', 'success');
+    } else {
+      showToast('Failed to update delivery country', 'error');
+    }
+  };
+
+  // Handle Newsletter Subscribe in Account Settings
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterEmail.trim()) return;
+
+    setIsNewsletterLoading(true);
+    try {
+      const res = await fetch('/api/v1/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newsletterEmail.trim(), source: 'customer_dashboard' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsNewsletterSubscribed(true);
+        showToast(data.message || 'Subscribed to Roaster Club Newsletter!', 'success');
+      } else if (res.status === 409) {
+        setIsNewsletterSubscribed(true);
+        showToast('You are already enrolled in the Roaster Club Newsletter.', 'info');
+      } else {
+        showToast(data.error || 'Failed to enroll in newsletter.', 'error');
+      }
+    } catch {
+      showToast('Connection error. Please try again.', 'error');
+    } finally {
+      setIsNewsletterLoading(false);
+    }
+  };
+
+  // Detect whether saved address is in an Indian state while country is United States / USA
+  const savedState = currentUser.shippingAddress?.state?.toLowerCase() || '';
+  const savedCountry = currentUser.shippingAddress?.country || '';
+  const isIndianAddressWithUsaCountry =
+    (savedState.includes('andhra') ||
+      savedState.includes('palnadu') ||
+      savedState.includes('telangana') ||
+      savedState.includes('karnataka') ||
+      savedState.includes('tamil') ||
+      savedState.includes('maharashtra') ||
+      currentUser.shippingAddress?.postalCode === '522415') &&
+    (savedCountry.toLowerCase() === 'united states' || savedCountry.toLowerCase() === 'usa');
+
+  // Most recent active order
+  const activeOrder = orders.find((o) =>
+    ['received', 'processing', 'roasting', 'dispatched'].includes(o.orderStatus)
+  );
 
   const memberSinceYear = currentUser.createdAt
     ? new Date(currentUser.createdAt).toLocaleDateString('en-IN', {
@@ -230,8 +408,8 @@ export const CustomerDashboardPage: React.FC = () => {
               to="/shop"
               className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all text-center flex items-center justify-center gap-1.5"
             >
+              <Compass className="w-3.5 h-3.5" />
               <span>Explore Roasts</span>
-              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
             <button
               type="button"
@@ -265,6 +443,11 @@ export const CustomerDashboardPage: React.FC = () => {
                 {item.id === 'wishlist' && wishlist.length > 0 && (
                   <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? 'bg-terracotta-600 text-white' : 'bg-terracotta-100 text-terracotta-800'}`}>
                     {wishlist.length}
+                  </span>
+                )}
+                {item.id === 'orders' && orders.length > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? 'bg-terracotta-600 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                    {orders.length}
                   </span>
                 )}
               </button>
@@ -302,6 +485,11 @@ export const CustomerDashboardPage: React.FC = () => {
                     {item.id === 'wishlist' && wishlist.length > 0 && (
                       <span className={`px-2 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-terracotta-600 text-white' : 'bg-[#FAF6F0] text-terracotta-700 border border-[#EBDCCE]'}`}>
                         {wishlist.length}
+                      </span>
+                    )}
+                    {item.id === 'orders' && orders.length > 0 && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-terracotta-600 text-white' : 'bg-[#FAF6F0] text-amber-800 border border-[#EBDCCE]'}`}>
+                        {orders.length}
                       </span>
                     )}
                     {item.id === 'overview' && (
@@ -350,10 +538,13 @@ export const CustomerDashboardPage: React.FC = () => {
                     <div className="text-2xl font-black text-[#3A1E0E]">
                       {cartCount} {cartCount === 1 ? 'Item' : 'Items'}
                     </div>
+                    <p className="text-[11px] text-[#6E4022] font-semibold">
+                      {cartCount > 0 ? `Subtotal: ${formatCurrency(cartTotal)}` : 'Cart is currently empty'}
+                    </p>
                     <button
                       type="button"
                       onClick={() => setIsCartOpen(true)}
-                      className="text-[11px] text-terracotta-600 hover:underline font-bold flex items-center gap-1"
+                      className="text-[11px] text-terracotta-600 hover:underline font-bold flex items-center gap-1 pt-1"
                     >
                       <span>Open cart drawer</span>
                       <ArrowRight className="w-3 h-3" />
@@ -368,24 +559,32 @@ export const CustomerDashboardPage: React.FC = () => {
                     <div className="text-2xl font-black text-[#3A1E0E]">
                       {wishlist.length} {wishlist.length === 1 ? 'Roast' : 'Roasts'}
                     </div>
+                    <p className="text-[11px] text-[#6E4022] font-semibold">
+                      {wishlist.length > 0 ? 'Saved in your personal cellar' : 'No saved roasts yet'}
+                    </p>
                     <button
                       type="button"
                       onClick={() => setActiveTab('wishlist')}
-                      className="text-[11px] text-terracotta-600 hover:underline font-bold flex items-center gap-1"
+                      className="text-[11px] text-terracotta-600 hover:underline font-bold flex items-center gap-1 pt-1"
                     >
                       <span>View saved items</span>
                       <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
 
+                  {/* Roaster Club Rewards — Honest Status */}
                   <div className="p-5 rounded-3xl bg-white border border-[#EBDCCE] shadow-soft space-y-2">
                     <div className="flex items-center justify-between text-xs text-[#8A5934]">
-                      <span>Roaster Club Points</span>
+                      <span>Roaster Club Rewards</span>
                       <Sparkles className="w-4 h-4 text-amber-500" />
                     </div>
-                    <div className="text-2xl font-black text-[#3A1E0E]">150 Beans</div>
-                    <p className="text-[11px] text-emerald-700 font-semibold">
-                      {formatCurrency(150)} reward credit on your next order
+                    <div className="text-lg font-bold text-[#3A1E0E] flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                        Coming Soon
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#6E4022] leading-relaxed">
+                      Earn 1 Bean per ₹10 spent on fresh roasts. Automated loyalty credits will unlock next season.
                     </p>
                   </div>
                 </div>
@@ -405,34 +604,71 @@ export const CustomerDashboardPage: React.FC = () => {
                         onClick={() => setActiveTab('profile')}
                         className="text-xs font-bold text-terracotta-600 hover:underline"
                       >
-                        Edit →
+                        Edit Address →
                       </button>
                     </div>
 
                     {currentUser.shippingAddress?.street ? (
-                      <div className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs text-[#532D16] space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-[#3A1E0E] text-sm">{currentUser.name}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-700 bg-terracotta-100/70 px-2 py-0.5 rounded border border-terracotta-200">
-                            Primary
-                          </span>
-                        </div>
-                        {currentUser.phone && (
-                          <div className="text-xs text-[#6E4022] font-medium">{currentUser.phone}</div>
-                        )}
-                        <div className="pt-1 text-[#2B170E] font-medium leading-relaxed">
-                          {currentUser.shippingAddress.street}
-                        </div>
-                        {currentUser.shippingAddress.apartment && (
-                          <div className="text-[#6E4022]">{currentUser.shippingAddress.apartment}</div>
-                        )}
-                        <div className="text-[#3A1E0E]">
-                          {currentUser.shippingAddress.city}, {currentUser.shippingAddress.state}
-                          {currentUser.shippingAddress.postalCode ? ` - ${currentUser.shippingAddress.postalCode}` : ''}
-                        </div>
-                        {currentUser.shippingAddress.country && (
-                          <div className="text-[#8A5934] font-medium pt-0.5">
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs text-[#532D16] space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[#3A1E0E] text-sm">{currentUser.name}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-700 bg-terracotta-100/70 px-2 py-0.5 rounded border border-terracotta-200">
+                              Primary
+                            </span>
+                          </div>
+                          {currentUser.phone && (
+                            <div className="text-xs text-[#6E4022] font-medium">{currentUser.phone}</div>
+                          )}
+                          <div className="pt-1 text-[#2B170E] font-medium leading-relaxed">
+                            {currentUser.shippingAddress.street}
+                          </div>
+                          {currentUser.shippingAddress.apartment && (
+                            <div className="text-[#6E4022]">{currentUser.shippingAddress.apartment}</div>
+                          )}
+                          <div className="text-[#3A1E0E]">
+                            {currentUser.shippingAddress.city}, {currentUser.shippingAddress.state}
+                            {currentUser.shippingAddress.postalCode ? ` - ${currentUser.shippingAddress.postalCode}` : ''}
+                          </div>
+                          <div className="text-[#8A5934] font-bold pt-0.5">
                             {currentUser.shippingAddress.country}
+                          </div>
+                        </div>
+
+                        {/* Customer Confirmation Banner if Indian State has USA Country saved */}
+                        {isIndianAddressWithUsaCountry && (
+                          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <p className="font-bold">
+                                  Delivery Address Confirmation Needed
+                                </p>
+                                <p className="text-[11px] text-amber-900 leading-relaxed">
+                                  Your saved address is located in <strong>{currentUser.shippingAddress?.state}</strong> (PIN {currentUser.shippingAddress?.postalCode}), but the country on record is <strong>"{currentUser.shippingAddress?.country}"</strong>. Would you like to confirm updating the country to <strong>India</strong>?
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex justify-end pt-1">
+                              <button
+                                type="button"
+                                disabled={isUpdatingCountry}
+                                onClick={handleConfirmCountryAsIndia}
+                                className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
+                              >
+                                {isUpdatingCountry ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    <span>Updating...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Confirm Country as India</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -454,7 +690,7 @@ export const CustomerDashboardPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Honest Roast Dispatch Notification */}
+                  {/* Real Live Roast Dispatch Notification */}
                   <div className="bg-white rounded-3xl p-6 border border-[#EBDCCE] shadow-soft space-y-4 flex flex-col justify-between">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -462,13 +698,45 @@ export const CustomerDashboardPage: React.FC = () => {
                           <Package className="w-4 h-4 text-terracotta-600" />
                           Live Roaster Dispatch
                         </h3>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          Roastery Active
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                          activeOrder
+                            ? 'text-terracotta-700 bg-terracotta-50 border-terracotta-200'
+                            : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        }`}>
+                          {activeOrder ? activeOrder.orderStatus : 'Roastery Active'}
                         </span>
                       </div>
-                      <p className="text-xs text-[#6E4022] leading-relaxed">
-                        No active roast batches currently in transit for your account. When you place an order, live roast dates, cupping notes, and courier dispatch tracking will update right here.
-                      </p>
+
+                      {activeOrder ? (
+                        <div className="p-3.5 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs space-y-1.5">
+                          <div className="flex items-center justify-between font-bold text-[#3A1E0E]">
+                            <span className="font-mono">{activeOrder.orderNumber}</span>
+                            <span className="text-[10px] uppercase text-terracotta-600 bg-terracotta-100 px-2 py-0.5 rounded">
+                              {activeOrder.orderStatus}
+                            </span>
+                          </div>
+                          <p className="text-[#6E4022]">
+                            Placed on {new Date(activeOrder.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })} • {activeOrder.items?.length} {activeOrder.items?.length === 1 ? 'item' : 'items'} ({formatCurrency(activeOrder.totalAmount)})
+                          </p>
+                          {activeOrder.orderStatus === 'dispatched' ? (
+                            <p className="text-emerald-700 font-medium text-[11px] pt-1">
+                              Dispatched with express courier. Tracking updates are active.
+                            </p>
+                          ) : (
+                            <p className="text-[#8A5934] text-[11px] pt-1">
+                              Batch currently scheduled in drum roasting queue.
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#6E4022] leading-relaxed">
+                          No active roast batches currently in transit for your account. When you place an order, live roast status, batch updates, and courier dispatch tracking will display right here.
+                        </p>
+                      )}
                     </div>
 
                     <div className="pt-2 flex flex-col sm:flex-row gap-2">
@@ -479,12 +747,13 @@ export const CustomerDashboardPage: React.FC = () => {
                         <Coffee className="w-3.5 h-3.5 text-amber-400" />
                         <span>Order Fresh Roast</span>
                       </Link>
-                      <Link
-                        to="/subscribe"
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('subscriptions')}
                         className="flex-1 py-2.5 rounded-xl bg-[#FAF6F0] hover:bg-[#F5ECE1] text-[#3A1E0E] text-xs font-bold border border-[#EBDCCE] transition-all text-center"
                       >
-                        Start Subscription (15% Off)
-                      </Link>
+                        View Subscriptions
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -494,7 +763,7 @@ export const CustomerDashboardPage: React.FC = () => {
                   <div className="space-y-1 text-center sm:text-left">
                     <h4 className="font-serif text-lg font-bold">Firedup Coffee Quality Promise</h4>
                     <p className="text-xs text-[#D5BC9F] max-w-xl">
-                      Each batch is roasted on our Giesen drum roaster in micro-batches and shipped within 48 hours with single-way degassing valves to preserve aromatic peak freshness.
+                      Each batch is roasted on our drum roaster in artisanal micro-lots and shipped within 48 hours with single-way degassing valves to preserve aromatic peak freshness.
                     </p>
                   </div>
                   <Link
@@ -517,7 +786,7 @@ export const CustomerDashboardPage: React.FC = () => {
                     Personal Profile & Delivery Address
                   </h2>
                   <p className="text-xs text-[#6E4022] mt-1">
-                    Manage your name, contact phone number, and default delivery address for instant checkout.
+                    Manage your verified name, contact phone number, and default delivery address for instant checkout.
                   </p>
                 </div>
 
@@ -605,7 +874,7 @@ export const CustomerDashboardPage: React.FC = () => {
                         value={profileForm.street}
                         onChange={(e) => setProfileForm({ ...profileForm, street: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
-                        placeholder="Flat / House No., Building Name, Street"
+                        placeholder="House / Flat No., Village / Colony, Street"
                       />
                     </div>
 
@@ -620,13 +889,13 @@ export const CustomerDashboardPage: React.FC = () => {
                           value={profileForm.apartment}
                           onChange={(e) => setProfileForm({ ...profileForm, apartment: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
-                          placeholder="Near Central Park"
+                          placeholder="Near Main Bus Stand"
                         />
                       </div>
 
                       <div>
                         <label htmlFor="city" className="text-xs font-bold text-[#532D16] block mb-1">
-                          City *
+                          City / Town *
                         </label>
                         <input
                           id="city"
@@ -635,7 +904,7 @@ export const CustomerDashboardPage: React.FC = () => {
                           value={profileForm.city}
                           onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
-                          placeholder="Bengaluru"
+                          placeholder="e.g. Gurzala / Bengaluru"
                         />
                       </div>
                     </div>
@@ -652,7 +921,7 @@ export const CustomerDashboardPage: React.FC = () => {
                           value={profileForm.state}
                           onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
-                          placeholder="Karnataka"
+                          placeholder="e.g. Andhra Pradesh"
                         />
                       </div>
 
@@ -667,7 +936,7 @@ export const CustomerDashboardPage: React.FC = () => {
                           value={profileForm.postalCode}
                           onChange={(e) => setProfileForm({ ...profileForm, postalCode: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
-                          placeholder="560001"
+                          placeholder="522415"
                         />
                       </div>
 
@@ -683,8 +952,8 @@ export const CustomerDashboardPage: React.FC = () => {
                         >
                           <option value="India">India</option>
                           <option value="United States">United States</option>
-                          <option value="Canada">Canada</option>
                           <option value="United Kingdom">United Kingdom</option>
+                          <option value="Canada">Canada</option>
                           <option value="Australia">Australia</option>
                         </select>
                       </div>
@@ -721,50 +990,141 @@ export const CustomerDashboardPage: React.FC = () => {
                   <div>
                     <h2 className="font-serif text-xl font-bold text-[#3A1E0E] flex items-center gap-2">
                       <Package className="w-5 h-5 text-terracotta-600" />
-                      Roastery Order History
+                      Roastery Order History ({orders.length})
                     </h2>
                     <p className="text-xs text-[#6E4022] mt-0.5">
-                      View all past shipments, tracking updates, and roast date records.
+                      View all past shipments, batch roasting records, and doorstep deliveries.
                     </p>
                   </div>
-                  <Link
-                    to="/shop"
-                    className="text-xs font-bold text-terracotta-600 hover:underline flex items-center gap-1 self-start sm:self-auto"
-                  >
-                    <span>Browse Catalog</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-
-                {/* Honest Empty State */}
-                <div className="py-12 px-4 rounded-3xl bg-[#FAF6F0] border border-dashed border-[#EBDCCE] text-center max-w-lg mx-auto space-y-4">
-                  <div className="w-16 h-16 rounded-3xl bg-white text-[#8A5934] mx-auto flex items-center justify-center shadow-soft">
-                    <Package className="w-8 h-8 text-terracotta-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-serif text-lg font-bold text-[#3A1E0E]">
-                      No Roastery Orders Placed Yet
-                    </h3>
-                    <p className="text-xs text-[#6E4022] leading-relaxed">
-                      You haven't placed an order yet. Select from our artisanal single-origin harvest micro-lots or espresso blends, and we will roast fresh for your delivery.
-                    </p>
-                  </div>
-                  <div className="pt-2 flex flex-col sm:flex-row justify-center gap-3">
-                    <Link
-                      to="/shop"
-                      className="px-6 py-2.5 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-all shadow-soft"
-                    >
-                      Explore Fresh Roasts
-                    </Link>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
                     <button
                       type="button"
-                      onClick={() => setIsCartOpen(true)}
-                      className="px-6 py-2.5 rounded-xl bg-white hover:bg-white/80 text-[#3A1E0E] text-xs font-bold border border-[#EBDCCE] transition-all"
+                      onClick={fetchCustomerOrders}
+                      className="px-3 py-1.5 rounded-xl bg-[#FAF6F0] hover:bg-[#F5ECE1] text-[#3A1E0E] text-xs font-bold border border-[#EBDCCE] flex items-center gap-1.5"
                     >
-                      View Cart ({cartCount})
+                      <RefreshCw className={`w-3.5 h-3.5 ${isOrdersLoading ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
                     </button>
+                    <Link
+                      to="/shop"
+                      className="text-xs font-bold text-terracotta-600 hover:underline flex items-center gap-1"
+                    >
+                      <span>Explore Roasts</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
                 </div>
+
+                {isOrdersLoading ? (
+                  <div className="py-16 text-center text-xs text-[#8A5934] flex flex-col items-center gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-terracotta-600" />
+                    <span>Loading your roastery orders...</span>
+                  </div>
+                ) : orders.length === 0 ? (
+                  /* Honest Empty State */
+                  <div className="py-12 px-4 rounded-3xl bg-[#FAF6F0] border border-dashed border-[#EBDCCE] text-center max-w-lg mx-auto space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-white text-[#8A5934] mx-auto flex items-center justify-center shadow-soft">
+                      <Package className="w-8 h-8 text-terracotta-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="font-serif text-lg font-bold text-[#3A1E0E]">
+                        No Roastery Orders Placed Yet
+                      </h3>
+                      <p className="text-xs text-[#6E4022] leading-relaxed">
+                        You haven't placed an order yet. Select from our artisanal single-origin harvest micro-lots or espresso blends, and we will roast fresh for your delivery.
+                      </p>
+                    </div>
+                    <div className="pt-2 flex flex-col sm:flex-row justify-center gap-3">
+                      <Link
+                        to="/shop"
+                        className="px-6 py-2.5 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-all shadow-soft"
+                      >
+                        Explore Fresh Roasts
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setIsCartOpen(true)}
+                        className="px-6 py-2.5 rounded-xl bg-white hover:bg-white/80 text-[#3A1E0E] text-xs font-bold border border-[#EBDCCE] transition-all"
+                      >
+                        View Cart ({cartCount})
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((ord) => (
+                      <div
+                        key={ord._id || ord.id}
+                        className="p-5 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] space-y-3 hover:border-terracotta-300 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#EBDCCE] pb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-[#2B170E] text-sm">
+                                {ord.orderNumber}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                ord.orderStatus === 'delivered'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : ord.orderStatus === 'cancelled'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}>
+                                {ord.orderStatus}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase text-stone-500">
+                                {ord.paymentStatus}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-[#8A5934] mt-0.5 block">
+                              Placed on {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="text-sm font-extrabold text-[#2B170E] block">
+                                {formatCurrency(ord.totalAmount)}
+                              </span>
+                              <span className="text-[10px] text-[#8A5934]">
+                                {ord.items?.length} {ord.items?.length === 1 ? 'item' : 'items'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrder(ord)}
+                              className="px-3 py-1.5 rounded-xl bg-white hover:bg-white/80 border border-[#EBDCCE] text-xs font-bold text-[#3A1E0E] flex items-center gap-1"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Details</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Order Items Preview */}
+                        <div className="divide-y divide-[#EBDCCE]/60 text-xs">
+                          {ord.items?.map((item: any, idx: number) => (
+                            <div key={idx} className="py-2 flex items-center justify-between">
+                              <div>
+                                <span className="font-bold text-[#3A1E0E]">{item.productName}</span>
+                                <span className="text-[11px] text-[#8A5934] ml-2">
+                                  {item.quantity}x {item.size} • {item.grind}
+                                </span>
+                              </div>
+                              <span className="font-semibold text-[#2B170E]">
+                                {formatCurrency(item.lineTotal)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -786,7 +1146,7 @@ export const CustomerDashboardPage: React.FC = () => {
                       to="/shop"
                       className="text-xs font-bold text-terracotta-600 hover:underline flex items-center gap-1 self-start sm:self-auto"
                     >
-                      <span>Add more from shop</span>
+                      <span>Explore Roasts</span>
                       <ArrowRight className="w-3 h-3" />
                     </Link>
                   )}
@@ -893,30 +1253,25 @@ export const CustomerDashboardPage: React.FC = () => {
                       Recurring Coffee Club Subscriptions
                     </h2>
                     <p className="text-xs text-[#6E4022] mt-0.5">
-                      Never run out of freshly roasted beans with automated doorstep deliveries.
+                      Automated recurring shipments direct to your door.
                     </p>
                   </div>
                 </div>
 
-                {/* Status Notice */}
-                <div className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold flex-shrink-0">
-                      <Clock className="w-5 h-5" />
+                {/* Honest Integration Notice */}
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-xs text-amber-950">
+                  <Clock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="font-bold text-sm text-[#3A1E0E]">
+                      Automated Recurring Billing Integration in Progress
                     </div>
-                    <div>
-                      <div className="font-bold text-[#3A1E0E]">No Active Recurring Plan</div>
-                      <div className="text-[11px] text-[#8A5934]">
-                        You are currently purchasing batches on-demand.
-                      </div>
-                    </div>
+                    <p className="text-[#6E4022] leading-relaxed">
+                      Recurring subscription billing is currently completing PCI-compliant gateway certification with our banking partner. Recurring charges are temporarily unavailable.
+                    </p>
+                    <p className="text-[#6E4022] leading-relaxed">
+                      You can continue enjoying our freshly roasted micro-lots on-demand with free doorstep delivery over {formatCurrency(999)}!
+                    </p>
                   </div>
-                  <Link
-                    to="/subscribe"
-                    className="px-4 py-2 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-xs transition-all shadow-soft whitespace-nowrap"
-                  >
-                    Subscribe Now
-                  </Link>
                 </div>
 
                 {/* Subscription Benefits */}
@@ -927,7 +1282,7 @@ export const CustomerDashboardPage: React.FC = () => {
                     </div>
                     <div className="font-bold text-xs text-[#3A1E0E]">15% Off Every Shipment</div>
                     <p className="text-[11px] text-[#6E4022]">
-                      Subscribers enjoy guaranteed preferential pricing on every recurring roast.
+                      Subscribers will receive guaranteed preferential pricing on every recurring roast.
                     </p>
                   </div>
 
@@ -947,17 +1302,18 @@ export const CustomerDashboardPage: React.FC = () => {
                     </div>
                     <div className="font-bold text-xs text-[#3A1E0E]">Full Roaster Flexibility</div>
                     <p className="text-[11px] text-[#6E4022]">
-                      Pause shipments, adjust grind sizes, or switch frequency anytime with no fees.
+                      Pause shipments, adjust grind sizes, or switch frequency anytime with zero penalty.
                     </p>
                   </div>
                 </div>
 
                 <div className="pt-2 text-center sm:text-left">
                   <Link
-                    to="/subscribe"
+                    to="/shop"
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-all shadow-md"
                   >
-                    <span>Customise Your Coffee Subscription</span>
+                    <Coffee className="w-4 h-4 text-amber-400" />
+                    <span>Order Fresh Roast On-Demand</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
@@ -989,11 +1345,7 @@ export const CustomerDashboardPage: React.FC = () => {
                     <div className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span className="font-bold text-[#532D16]">Account Role</span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-terracotta-50 text-terracotta-700 border border-terracotta-200 self-start sm:self-auto">
-                        {currentUser.role === 'customer'
-                          ? 'Customer Member'
-                          : currentUser.role === 'wholesale'
-                          ? 'Wholesale Partner'
-                          : 'Administrator'}
+                        Customer Member
                       </span>
                     </div>
 
@@ -1002,6 +1354,64 @@ export const CustomerDashboardPage: React.FC = () => {
                       <span className="text-[#8A5934]">{memberSinceYear}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Newsletter & Roaster Tasting Notes Enrollment */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EBDCCE] shadow-soft space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="font-serif text-lg font-bold text-[#3A1E0E] flex items-center gap-2">
+                      <Mail className="w-5 h-5 text-terracotta-600" />
+                      Roaster Club Newsletter & Micro-Lot Alerts
+                    </h3>
+                    <p className="text-xs text-[#6E4022]">
+                      Consent-based notifications for secret harvest lot drops, cupping scorecards, and roaster brew guides.
+                    </p>
+                  </div>
+
+                  {isNewsletterSubscribed ? (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-3">
+                      <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                      <div>
+                        <strong>Enrolled in Roaster Club Newsletter!</strong>
+                        <p className="text-[11px] text-emerald-700 mt-0.5">
+                          Tasting notes and seasonal harvest alerts are sent to <strong>{currentUser.email}</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleNewsletterSubmit} className="space-y-3">
+                      <div className="flex flex-col sm:flex-row gap-2.5">
+                        <input
+                          type="email"
+                          required
+                          value={newsletterEmail}
+                          onChange={(e) => setNewsletterEmail(e.target.value)}
+                          placeholder="Your email address"
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-2 focus:ring-terracotta-500/40"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isNewsletterLoading}
+                          className="px-6 py-2.5 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-soft disabled:opacity-50"
+                        >
+                          {isNewsletterLoading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Enrolling...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Enroll in Newsletter</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-[#8A5934] block">
+                        We respect your privacy. You can unsubscribe at any time.
+                      </span>
+                    </form>
+                  )}
                 </div>
 
                 {/* Session Sign Out Card */}
@@ -1033,6 +1443,114 @@ export const CustomerDashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Customer Order Details Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="max-w-xl w-full bg-white rounded-3xl p-6 space-y-5 shadow-2xl border border-[#EBDCCE] max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#EBDCCE] pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif font-bold text-lg text-[#3A1E0E]">
+                    Order {selectedOrder.orderNumber}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                    {selectedOrder.orderStatus}
+                  </span>
+                </div>
+                <p className="text-xs text-[#8A5934] mt-0.5">
+                  Placed on {new Date(selectedOrder.createdAt).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="p-1 rounded-lg text-[#8A5934] hover:text-[#3A1E0E] hover:bg-[#FAF6F0]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Items List */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-[#8A5934] uppercase tracking-wider block">
+                  Ordered Coffee Batches
+                </span>
+                <div className="bg-[#FAF6F0] rounded-xl p-3 divide-y divide-[#EBDCCE] border border-[#EBDCCE]">
+                  {selectedOrder.items?.map((item: any, idx: number) => (
+                    <div key={idx} className="py-2 flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-[#3A1E0E]">{item.productName}</div>
+                        <div className="text-[11px] text-[#8A5934]">
+                          {item.quantity}x {item.size} • {item.grind}
+                        </div>
+                      </div>
+                      <div className="font-extrabold text-[#2B170E]">{formatCurrency(item.lineTotal)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial Breakdown */}
+              <div className="space-y-1.5 p-3.5 bg-[#FAF6F0] rounded-xl border border-[#EBDCCE]">
+                <div className="flex justify-between text-[#6E4022]">
+                  <span>Subtotal:</span>
+                  <span className="font-semibold text-[#2B170E]">{formatCurrency(selectedOrder.subtotal)}</span>
+                </div>
+                {selectedOrder.discountAmount > 0 && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Discount ({selectedOrder.discountPercent}%):</span>
+                    <span>-{formatCurrency(selectedOrder.discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-[#6E4022]">
+                  <span>Doorstep Courier:</span>
+                  <span className="font-semibold text-[#2B170E]">
+                    {selectedOrder.shippingFee === 0 ? 'FREE' : formatCurrency(selectedOrder.shippingFee)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm font-extrabold text-[#2B170E] pt-2 border-t border-[#EBDCCE]">
+                  <span>Total Paid:</span>
+                  <span className="text-terracotta-700">{formatCurrency(selectedOrder.totalAmount)}</span>
+                </div>
+              </div>
+
+              {/* Delivery Address */}
+              {selectedOrder.shippingAddress && (
+                <div className="p-3.5 bg-[#FAF6F0] rounded-xl border border-[#EBDCCE] space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-[#8A5934] block">Delivery Address</span>
+                  <p className="font-bold text-[#3A1E0E]">{selectedOrder.shippingAddress.contactName}</p>
+                  <p className="text-[#532D16]">
+                    {selectedOrder.shippingAddress.street}
+                    {selectedOrder.shippingAddress.apartment ? `, ${selectedOrder.shippingAddress.apartment}` : ''}
+                  </p>
+                  <p className="text-[#8A5934]">
+                    {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.postalCode} • {selectedOrder.shippingAddress.country}
+                  </p>
+                  {selectedOrder.shippingAddress.phone && (
+                    <p className="text-[#8A5934]">Phone: {selectedOrder.shippingAddress.phone}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-[#EBDCCE]">
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="px-5 py-2 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

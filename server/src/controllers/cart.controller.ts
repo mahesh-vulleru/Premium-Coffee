@@ -95,6 +95,13 @@ export async function addToCart(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ success: false, error: 'Product not found in catalogue' });
     }
 
+    if (product.isArchived || product.isPublished === false) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product roast is currently unpublished or unavailable for purchase.',
+      });
+    }
+
     const qtyToAdd = Math.max(1, parseInt(quantity, 10) || 1);
 
     let cart = await Cart.findOne({ userId: req.user._id });

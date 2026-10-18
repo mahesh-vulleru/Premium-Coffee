@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD) — Firedup Specialty Coffee
 
 **Project:** Firedup Specialty Coffee Full-Stack E-Commerce Platform  
-**Version:** 2.1.0  
+**Version:** 2.4.0  
 **Target Platform:** Web (Desktop, Tablet, Mobile)  
 **Currency Standard:** Indian Rupee (INR / ₹)  
 **Status:** Active Production-Ready Development  
@@ -43,7 +43,7 @@ The system follows a client-server architecture with separation of concerns:
 ## 3. Currency & Localization Standard
 
 ### 3.1 Indian Rupee (INR) Requirement
-- The entire application standardizes exclusively on **Indian Rupees (INR / ₹)**. No US Dollar (`$`) signs or assumptions are permitted anywhere in the UI or codebase.
+- The entire application standardizes exclusively on **Indian Rupees (INR / ₹)**. No foreign currency symbols or assumptions are permitted anywhere in the UI or codebase.
 - Currency formatting must use JavaScript's native `Intl.NumberFormat` with locale `en-IN` and currency `INR`:
   ```ts
   export const formatCurrency = (amount: number): string =>
@@ -58,121 +58,142 @@ The system follows a client-server architecture with separation of concerns:
   - 500g bag scaling: ~1.85x base price
   - 1kg bag scaling: ~3.4x base price (bulk economy savings)
   - Free delivery threshold: Orders of ₹999 or higher; flat ₹99 shipping below threshold
-  - Subscription discount: 15% recurring discount on scheduled deliveries
 
 ---
 
-## 4. Authentication, Authorization & Security Requirements
+## 4. User Roles & Experience Specifications
 
-### 4.1 Multi-Tier Roles & Access Control
-The application strictly enforces three distinct user roles:
-1. `customer`: Home brewers and individual buyers. Can browse, manage profile, save delivery addresses, maintain wishlist, order, and subscribe.
-2. `wholesale`: Commercial cafes and bulk business partners. Must submit business registration details (company name, GST/tax ID, monthly estimated volume) and remain in `pending` status until manually reviewed and approved by an administrator.
-3. `admin`: Internal roastery operations and store administrators. Can manage the product catalog, audit users, and approve/reject wholesale applications.
+### 4.1 Guest (Unauthenticated Visitor)
+- Unrestricted browsing of product catalogue, tasting notes, roast profiles, stories, and the coffee finder quiz.
+- Protected action interception: Clicking "Add to Cart" or "Wishlist" opens the premium `AuthRequiredModal` rather than completing the action.
+- Action preservation: Upon successful login or registration, the modal executes the preserved action and shows visual confirmation.
 
-### 4.2 Secure Admin Provisioning
-- Staff administrators cannot be created through public customer registration.
-- Admin registration (`/register/admin` or `POST /api/v1/auth/register/admin`) requires a valid `ADMIN_INVITATION_SECRET` token; invalid or missing tokens return `403 Forbidden`.
-- A dedicated, idempotent provisioning script (`npm run server:provision-admin`) allows initial setup of the root administrator account without credentials being hardcoded into repository code.
+### 4.2 Customer (Retail Enthusiast)
+- **Delivery Address Integrity:**
+  - Database schema defaults country to `India`.
+  - Profile dynamically loads the customer's persisted shipping address.
+  - Confirmation banner is rendered if legacy data has non-Indian country for an Indian address (e.g. Andhra Pradesh), allowing explicit customer confirmation without silent overwrites.
+  - Fully validated Edit Address form (Street $\ge 2$, City $\ge 2$, State $\ge 2$, Postal Code $\ge 3$, Phone $\ge 7$) persisting via `PUT /api/v1/auth/profile`.
+- **Authoritative Cart & Wishlist:**
+  - Active cart count and subtotal calculate directly from server-side database prices.
+  - Strict data isolation across accounts (zero leakage).
+- **Roaster Club Loyalty:**
+  - Displays honest "Coming Soon" card explaining loyalty tier mechanics rather than fabricated beans or credit.
+- **Order Tracking & Retail Checkout:**
+  - Placed orders fetch via `GET /api/v1/orders` and `GET /api/v1/orders/:id`.
+  - Order placement via `POST /api/v1/orders` validates stock, applies promo codes (`FIREDUP15`), decrements warehouse inventory, and clears the active cart.
+  - Live dispatch card displays current order progress (`received` $\rightarrow$ `roasting` $\rightarrow$ `dispatched` $\rightarrow$ `delivered`).
+- **Newsletter Subscription:**
+  - Real consent-based endpoint `POST /api/v1/newsletter/subscribe` and `GET /api/v1/newsletter/status` with polite duplicate handling (`409 Conflict`).
+- **Subscriptions:**
+  - Honest disclosure that recurring card billing is under payment gateway integration; on-demand ordering is fully active.
 
-### 4.3 Session & Credential Security
-- Passwords must be hashed using `bcryptjs` with a minimum of 10 (standard 12) salt rounds.
-- Authentication tokens are delivered via `HttpOnly`, `SameSite: Lax` secure cookies to prevent XSS credential theft, with secondary Bearer token support for mobile or headless clients.
-- Serialized JSON responses from any auth or user endpoint must strictly exclude password hashes, salt rounds, and admin invitation secrets.
+### 4.3 Wholesale Partner (B2B Cafe & Restaurant)
+- Separate dedicated B2B portal (`/dashboard/wholesale`).
+- Applications submitted via `/register/wholesale` default to `pending` status.
+- Restricted access: Pending or rejected partners cannot access commercial volume pricing or bulk checkout.
+- Approved partners unlock 1kg bulk bag catalogue with wholesale discounts (30% to 40% off).
+- Minimum Order Quantity (MOQ): Server-enforced 5kg minimum order volume.
+- Automatic volume tiers:
+  - Tier 1 (5–24kg): 30% wholesale discount
+  - Tier 2 (25–49kg): 35% wholesale discount + free commercial freight
+  - Tier 3 (50kg+): 40% wholesale discount + priority roasting queue
+- Downloadable official GST-compliant Tax Invoices.
+- 1-click reorder engine.
 
----
-
-## 5. Functional Requirements
-
-### 5.1 Storefront & Coffee Discovery
-1. **Public Browsing:**
-   - Unauthenticated visitors can freely browse all storefront sections, the complete coffee catalogue (`/shop`), individual roast details (`/product/:id`), seasonal deals (`/deals`), subscriptions (`/subscribe`), and roastery stories (`/our-story`).
-2. **Interactive Coffee Finder Quiz:**
-   - Multi-step modal assisting users in selecting coffee based on brewing equipment (French press, espresso, pour over, AeroPress, South Indian filter), roast preference, milk pairing, and tasting notes.
-3. **Product Compare Engine:**
-   - Side-by-side comparison matrix evaluating up to 3 roasts across roast level, acidity, body, processing method, and price.
-4. **Quick View Lightbox:**
-   - Modal inspection of product specifications without leaving the current catalog page.
-
-### 5.2 Guest Authentication Interception & Action Resumption
-1. **Action Interception:**
-   - When an unauthenticated visitor clicks **"Add to Cart"** or **"Wishlist / Favorite"**, the system intercepts the operation without modifying state.
-   - The intercepted action (type, product data, quantity, grind, size, subscription frequency, and return target URL) is safely recorded in React state and backed up in `sessionStorage`.
-2. **Authentication Required Modal (`AuthRequiredModal.tsx`):**
-   - Renders a luxury dialog matching Firedup's brand aesthetic: warm cream backdrop (`#FAF6F0`), dark espresso buttons (`#2B170E`), and amber highlights.
-   - Displays a dynamic product preview card showing the roast thumbnail, name, selected grind, bag size, and formatted INR price.
-   - Offers accessible "Sign In" and "Create Account" buttons with automatic return URL parameters (`?redirect=...`).
-   - Supports keyboard `Escape` dismissal, click-outside backdrop dismiss, and restores focus to the trigger button upon closure.
-3. **Single-Execution Action Resumption:**
-   - Upon successful login or customer registration, the pending action executes **exactly once**.
-   - `sessionStorage` is cleared immediately upon execution to prevent duplicate triggering on subsequent reloads.
-   - A personalized toast message confirms execution (e.g., *"Welcome, {Name}! Added {qty}x "{Product}" ({size}, {grind}) to your cart."*).
-4. **Authenticated Users:**
-   - Authenticated users perform cart and wishlist operations immediately without encountering the auth dialog.
-
-### 5.3 Customer Dashboard (`/dashboard/customer`)
-1. **Account Overview:**
-   - Personalized greeting using the authenticated user's real name.
-   - Summary tiles indicating account tier, active orders count, and wishlist count.
-2. **Delivery Address Management:**
-   - Displays default delivery address cleanly with distinct, separate address lines (Street, Apartment/Suite, City, State, PIN code, Country) sourced from live profile data.
-   - Prevents unformatted single-line concatenation.
-3. **Order Oversight:**
-   - Lists recent orders with real status badges (`Pending`, `Processing`, `Dispatched`, `Delivered`).
-4. **Saved Wishlist:**
-   - Grid of bookmarked roasts with rapid "Move to Cart" and "Remove" triggers.
-5. **Subscription Controls:**
-   - Summary of active recurring roast deliveries with frequency adjustment and pause/resume capabilities.
-
-### 5.4 Cart Drawer & Checkout Flow (`CartDrawer.tsx`)
-1. **Slide-Over Panel:**
-   - Accessible slide-out cart overlay with backdrop dismiss and keyboard support.
-2. **Quantity & Stock Enforcement:**
-   - Increment/decrement quantity controls that strictly enforce available inventory (`stockAvailable`).
-   - Warning toast notifications when attempting to exceed available warehouse stock.
-3. **Progressive Free Shipping Tracker:**
-   - Real-time progress bar calculating remaining amount needed to reach the ₹999 free shipping threshold.
-4. **Financial Breakdown:**
-   - Clear display of Subtotal, Applied Discounts, Shipping, and Total in INR (`₹`).
-5. **Hybrid Synchronization:**
-   - Guest items are stored in browser `localStorage`.
-   - When authenticated, the cart synchronizes bidirectionally with the user's MongoDB `Cart` record via `/api/v1/cart`.
-
-### 5.5 Wishlist Management (`WishlistDrawer.tsx`)
-1. **Duplicate Prevention:**
-   - Enforces unique entries per product ID.
-2. **Cloud Sync:**
-   - Synchronizes bookmarked items with the user's MongoDB `Wishlist` record via `/api/v1/wishlist`.
-
-### 5.6 Wholesale B2B Portal (`/wholesale`, `/dashboard/wholesale`)
-1. **Application Submission:**
-   - Commercial cafes submit business name, commercial address, GSTIN/tax identification, contact person, and estimated monthly coffee volume (kg).
-2. **Review Workflow:**
-   - New applications default to `pending` status.
-   - Wholesale dashboard displays a clear status notice while under roastery review.
-   - Upon admin approval, the partner gains access to tier-based wholesale pricing and bulk order placement.
-
-### 5.7 Roastery Administration Portal (`/dashboard/admin`)
-1. **Wholesale Partner Review:**
-   - Real-time list of pending applications with one-click "Approve" or "Reject" actions.
-2. **Product Catalog Oversight:**
-   - Inventory tracking, stock adjustment, and pricing updates.
-3. **User Management:**
-   - View registered users and verify assigned roles.
+### 4.4 Administrator (Staff & Management)
+- Secret token registration (`POST /api/v1/auth/register/admin`) with zero frontend token exposure.
+- Administrative dashboard (`/dashboard/admin`):
+  - Review pending wholesale applications with one-click approve or reject (with customized feedback reasons).
+  - Inspect orders and update fulfillment stages.
+  - Real-time catalogue stock monitoring.
+  - Safe development test data cleanup script (`npm run server:clean-tests`) preventing database pollution while strictly protecting genuine production accounts.
 
 ---
 
-## 6. Data Schemas & Models
+## 5. Core Data Models
 
-### 6.1 User Model (`User.ts`)
+### 5.1 User Model (`User.ts`)
 ```typescript
 interface IUser {
   name: string;
   email: string;
+  phone: string;
   passwordHash: string;
   role: 'customer' | 'wholesale' | 'admin';
-  phone?: string;
-  shippingAddress?: {
+  shippingAddress: {
+    street: string;
+    apartment?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string; // Defaults to 'India'
+  };
+  wholesaleDetails?: {
+    businessName: string;
+    businessType: 'cafe' | 'restaurant' | 'office' | 'retailer' | 'hotel' | 'other';
+    taxId: string;
+    monthlyVolumeKg: string;
+    status: 'pending' | 'approved' | 'rejected';
+    rejectionReason?: string;
+    approvedAt?: Date;
+    deliveryAddress: {
+      street: string;
+      city: string;
+      state: string;
+      postalCode: string;
+      country: string;
+    };
+  };
+}
+```
+
+### 5.2 Product Model (`Product.ts`)
+```typescript
+interface IProduct {
+  name: string;
+  category: 'espresso' | 'pour_over' | 'cold_brew' | 'french_press' | 'aeropress';
+  price: number; // Base retail price in INR for 250g
+  rating: number;
+  reviewsCount: number;
+  image: string;
+  tag: 'best_sellers' | 'single_origin' | 'special_reserve' | 'signature_blends';
+  roastLevel: 'Light' | 'Medium' | 'Medium-Dark' | 'Dark';
+  tastingNotes: string[];
+  origin: string;
+  description: string;
+  stockAvailable: number;
+}
+```
+
+### 5.3 Order Model (`Order.ts`)
+```typescript
+interface IOrder {
+  orderNumber: string; // e.g., 'FD-20261018-1234' or 'WS-20261018-5678'
+  userId: Types.ObjectId;
+  orderType: 'retail' | 'wholesale';
+  items: Array<{
+    product: Types.ObjectId;
+    productName: string;
+    quantity: number;
+    size: string;
+    grind: string;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
+  totalKg: number;
+  subtotal: number;
+  discountTier?: string;
+  discountPercent: number;
+  discountAmount: number;
+  taxPercent: number;
+  taxAmount: number;
+  shippingFee: number;
+  totalAmount: number;
+  shippingAddress: {
+    businessName?: string;
+    contactName: string;
+    phone: string;
     street: string;
     apartment?: string;
     city: string;
@@ -180,113 +201,126 @@ interface IUser {
     postalCode: string;
     country: string;
   };
-  wholesaleDetails?: {
-    companyName: string;
-    taxId?: string;
-    estimatedMonthlyVolumeKg?: number;
-    status: 'pending' | 'approved' | 'rejected';
-    approvedAt?: Date;
-    rejectedReason?: string;
-  };
-  createdAt: Date;
-  updatedAt: Date;
+  paymentMethod: 'net_terms' | 'bank_transfer' | 'credit_card' | 'cod';
+  paymentStatus: 'pending' | 'terms_approved' | 'paid' | 'failed';
+  orderStatus: 'received' | 'processing' | 'roasting' | 'dispatched' | 'delivered' | 'cancelled';
+  notes?: string;
 }
 ```
 
-### 6.2 Product Model (`Product.ts` & `coffee.ts`)
-```typescript
-interface CoffeeProduct {
-  id: string;
-  _id?: string;
-  name: string;
-  subtitle?: string;
-  category: 'espresso' | 'cappuccino' | 'latte' | 'moca' | 'americano' | 'cold_brew';
-  price: number; // Base price in INR for 250g
-  originalPrice?: number;
-  rating: number;
-  reviewsCount: number;
-  image: string;
-  isSale?: boolean;
-  saleLabel?: string;
-  tag: 'new_arrivals' | 'best_sellers' | 'top_rates';
-  roastLevel: 'Light' | 'Medium' | 'Medium-Dark' | 'Dark';
-  tastingNotes: string[];
-  origin: string;
-  altitude?: string;
-  process?: string;
-  description: string;
-  stockAvailable: number;
-}
-```
-
-### 6.3 Cart Model (`Cart.ts`)
+### 5.4 Cart Model (`Cart.ts`)
 ```typescript
 interface ICartItem {
-  product: Types.ObjectId | CoffeeProduct;
+  product: Types.ObjectId;
   quantity: number;
-  grind: 'Whole Bean' | 'French Press' | 'Pour Over' | 'Espresso' | 'Cold Brew';
-  size: '250g' | '500g' | '1kg';
-  frequency?: '2_weeks' | '3_weeks' | '4_weeks';
+  grind: string;
+  size: string;
+  frequency?: string;
 }
 
 interface ICart {
-  user: Types.ObjectId;
+  userId: Types.ObjectId;
   items: ICartItem[];
-  updatedAt: Date;
 }
 ```
 
-### 6.4 Wishlist Model (`Wishlist.ts`)
+### 5.5 Wishlist Model (`Wishlist.ts`)
 ```typescript
 interface IWishlist {
-  user: Types.ObjectId;
+  userId: Types.ObjectId;
   products: Types.ObjectId[];
-  updatedAt: Date;
 }
 ```
 
-### 6.5 Admin Token Model (`AdminToken.ts`)
+### 5.6 Newsletter Model (`Newsletter.ts`)
 ```typescript
-interface IAdminToken {
-  tokenHash: string;
-  createdBy: Types.ObjectId;
-  isUsed: boolean;
-  usedBy?: Types.ObjectId;
-  expiresAt: Date;
+interface INewsletter {
+  email: string;
+  status: 'active' | 'unsubscribed';
+  source: string;
+  subscribedAt: Date;
+}
+```
+
+### 5.7 Inventory Movement Log Model (`InventoryLog.ts`)
+```typescript
+interface IInventoryLog {
+  product: Types.ObjectId;
+  previousStock: number;
+  newStock: number;
+  quantityChange: number;
+  reason: string; // Mandatory, min 3 characters
+  referenceType: 'admin_adjustment' | 'order_fulfillment' | 'wholesale_order' | 'restock' | 'spoilage';
+  referenceId?: string;
+  actor?: Types.ObjectId;
+  actorRole: 'admin' | 'system' | 'customer' | 'wholesale';
+  createdAt: Date;
+}
+```
+
+### 5.8 Administrative Audit Log Model (`AuditLog.ts`)
+```typescript
+interface IAuditLog {
+  action: string;
+  actorId?: Types.ObjectId;
+  actorEmail?: string;
+  actorRole: string;
+  targetModel: string;
+  targetId?: string;
+  details?: Record<string, any>; // Sensitive fields automatically redacted
+  ipAddress?: string;
+  userAgent?: string;
   createdAt: Date;
 }
 ```
 
 ---
 
-## 7. Non-Functional Requirements
+## 6. Security, Isolation & Integrity Standards
 
-### 7.1 Performance & Responsiveness
-- **Build Times:** Vite client production bundle completes in under 1 second (`~875ms`).
-- **Responsive Breakpoints:** Fully fluid layouts across mobile (<640px), tablet (640px–1024px), and desktop (>1024px).
-- **Zero Horizontal Overflow:** Strict layout bounds preventing horizontal scrolling on mobile viewports.
-- **Graceful Image Fallbacks:** Automated fallback handling for remote product images to prevent broken UI tiles.
-
-### 7.2 Accessibility & Usability (a11y)
-- All modal dialogs implement ARIA attributes (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `aria-describedby`).
-- Full keyboard support: Tab focus trap in active modals, `Escape` key closes overlays, focus restores to origin buttons.
-- Color contrast meets WCAG 2.1 AA standards utilizing deep espresso shades (`#2B170E`, `#3A1E0E`) against warm neutral backgrounds (`#FAF6F0`, `#F5EBE1`).
-
-### 7.3 Code Quality & Linter Compliance
-- Strict TypeScript compilation (`tsc -b` on frontend, `tsc` on server) with zero type errors.
-- Clean Oxlint linter results (`npm run lint` yields 0 warnings and 0 errors across all 82+ project files).
-- Pure function compliance under React Compiler standards (avoiding unmemoized impure evaluations and avoiding synchronous setState calls in effects).
+1. **Role-Based Access Control (RBAC):** Backend route middleware strictly enforces access permissions (`requireAuth`, `requireRole('admin')`, `requireApprovedWholesale`).
+2. **Authoritative Server Pricing:** Cart totals, discounts, and order amounts are calculated server-side from database prices, ignoring arbitrary client values.
+3. **Data Boundary Protection:** Users cannot view or modify carts, wishlists, addresses, or orders belonging to another user.
+4. **Credential Confidentiality:** Passwords are never sent over API responses (`toJSON` excludes `passwordHash`). Admin secret invitation tokens are never rendered in frontend components.
+5. **Mandatory Inventory Movement Justifications:** Every stock adjustment must record previous/new stock, quantity delta, and an operational reason ($\ge 3$ characters). Negative inventory adjustments and overselling are strictly rejected.
+6. **Storefront Public Isolation:** Unpublished or archived roasts are automatically excluded from public storefront queries (`$ne: true`), cart addition, and checkout.
+7. **Safe Data Cleanup:** `cleanupTestData()` safely clears test fixtures matching automated patterns while preserving genuine user records.
 
 ---
 
-## 8. Build, Seed & Test Commands
+## 7. Verification & Quality Assurance Suite
 
-| Command | Location | Description |
+The system maintains 100% passing automated test coverage across five distinct test suites (61/61 tests passing):
+
+```bash
+# 1. Frontend & Backend Linting
+npm run lint
+npm run server:lint
+
+# 2. Production Build Verification
+npm run build
+npm run server:build
+
+# 3. Backend Test Suites
+npm run server:test             # 11/11 Security & Admin Provisioning
+npm run server:test-isolation   # 14/14 Auth & RBAC Data Isolation
+npm run server:test-wholesale   # 15/15 Wholesale B2B Portal
+npm run server:test-customer    # 10/10 Customer Dashboard & Commerce
+npm run server:test-maintenance # 11/11 Shop Maintenance (Product & Inventory)
+```
+
+---
+
+## 8. Preserved Genuine Test & Seed Accounts
+
+The following accounts are designated as genuine records in the local development database and are strictly protected during test data cleanup:
+
+| Email | Role | Description |
 | :--- | :--- | :--- |
-| `npm run dev` | Root | Starts frontend Vite dev server at `http://localhost:5173` |
-| `npm run build` | Root | Compiles TypeScript and builds production frontend bundle |
-| `npm run lint` | Root | Runs Oxlint check across the entire project |
-| `npm run server:dev` | Root | Starts backend server with tsx hot reloading at `http://localhost:5000` |
-| `npm run server:provision-admin` | Root | Provisions initial root administrator account securely |
-| `npm run server:seed-products` | Root | Seeds MongoDB with specialty coffee catalogue in INR |
-| `npm run server:test` | Root | Executes the 11-step backend security and RBAC test suite |
+| `vullerumahesh14@gmail.com` | Customer / Lead | Primary development account |
+| `admin@firedupcoffee.com` | Administrator | Default roastery administrator |
+| `customer@gmail.com` | Customer | Standard retail customer fixture |
+| `wholesale@gmail.com` | Wholesale Partner | Approved commercial partner fixture |
+| `sarah@example.com` | Customer | Regular customer fixture |
+| `orders@artisanroasters.com` | Wholesale Partner | Commercial cafe account |
+| `cafe@highlandbrew.com` | Wholesale Partner | Commercial cafe account |

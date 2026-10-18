@@ -15,7 +15,10 @@ export async function getProducts(req: Request, res: Response) {
       limit = '50',
     } = req.query;
 
-    const filterQuery: Record<string, any> = {};
+    const filterQuery: Record<string, any> = {
+      isArchived: { $ne: true },
+      isPublished: { $ne: false },
+    };
 
     // Category filter
     if (category && category !== 'all') {
@@ -102,10 +105,11 @@ export async function getProductById(req: Request, res: Response) {
       product = await Product.findById(id);
     }
 
-    // Fallback: search by name or legacy string id if not valid ObjectId
+    // Fallback: search by slug or name
     if (!product) {
       product = await Product.findOne({
         $or: [
+          { slug: id.toLowerCase() },
           { name: new RegExp(`^${id.replace(/-/g, ' ')}$`, 'i') },
         ],
       });
@@ -115,6 +119,14 @@ export async function getProductById(req: Request, res: Response) {
       return res.status(404).json({
         success: false,
         error: 'Product roast not found in catalogue.',
+      });
+    }
+
+    // Exclude unpublished or archived products from public customer retrieval
+    if (product.isArchived || product.isPublished === false) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product roast is currently unavailable in the catalogue.',
       });
     }
 

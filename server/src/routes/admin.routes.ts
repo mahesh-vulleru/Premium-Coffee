@@ -11,6 +11,18 @@ import {
   listTokens,
   getAdminMetrics,
 } from '../controllers/admin.controller.js';
+import {
+  listAdminProducts,
+  getAdminProductById,
+  createAdminProduct,
+  updateAdminProduct,
+  setProductPublicationStatus,
+  archiveAdminProduct,
+  listAdminInventory,
+  adjustAdminInventory,
+  listAdminInventoryLogs,
+  listAdminAuditLogs,
+} from '../controllers/adminShop.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -28,5 +40,21 @@ router.get('/orders', listAllOrders);
 router.patch('/orders/:orderId/status', updateOrderStatus);
 router.post('/tokens/generate', generateToken);
 router.get('/tokens', listTokens);
+
+// Shop Maintenance: Products
+router.get('/products', listAdminProducts);
+router.post('/products', createAdminProduct);
+router.get('/products/:id', getAdminProductById);
+router.put('/products/:id', updateAdminProduct);
+router.patch('/products/:id/publish', setProductPublicationStatus);
+router.patch('/products/:id/archive', archiveAdminProduct);
+
+// Shop Maintenance: Inventory
+router.get('/inventory', listAdminInventory);
+router.post('/inventory/:id/adjust', adjustAdminInventory);
+router.get('/inventory/logs', listAdminInventoryLogs);
+
+// Shop Maintenance: Audit Logs
+router.get('/audit-logs', listAdminAuditLogs);
 
 export default router;

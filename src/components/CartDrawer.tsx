@@ -1,24 +1,30 @@
 import React, { useState, useEffect, useId } from 'react';
-import { Link } from 'react-router-dom';
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2, Tag, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2, Tag, Loader2, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/useAuth';
 import { calculateCartSummary, calculateProductPrice, formatCurrency, FREE_SHIPPING_THRESHOLD } from '../utils/pricing';
 import { handleImageError } from '../utils/imageFallback';
 
 export const CartDrawer: React.FC = () => {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const {
     cart,
     isCartOpen,
     setIsCartOpen,
     removeFromCart,
     updateQuantity,
+    clearCart,
     showToast,
+    setIsAuthModalOpen,
   } = useCart();
 
   const [promoCode, setPromoCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState(0);
   const [promoMessage, setPromoMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'checkout_preview'>('cart');
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   const titleId = useId();
 
@@ -62,7 +68,46 @@ export const CartDrawer: React.FC = () => {
   };
 
   const handleStartCheckout = () => {
+    if (!currentUser) {
+      setIsCartOpen(false);
+      setIsAuthModalOpen(true);
+      return;
+    }
     setCheckoutStep('checkout_preview');
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!currentUser) {
+      setIsCartOpen(false);
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    setIsPlacingOrder(true);
+    try {
+      const res = await fetch('/api/v1/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          promoCode: promoCode.trim().toUpperCase() === 'FIREDUP15' ? 'FIREDUP15' : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        clearCart();
+        setIsCartOpen(false);
+        setCheckoutStep('cart');
+        showToast('Order placed successfully! Fresh roast scheduled.', 'success');
+        navigate('/dashboard/customer');
+      } else {
+        showToast(data.error || 'Failed to place order. Please review your cart.', 'error');
+      }
+    } catch {
+      showToast('Connection error. Please try again.', 'error');
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   return (
@@ -135,18 +180,21 @@ export const CartDrawer: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
             {checkoutStep === 'checkout_preview' ? (
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-amber-950">
-                    <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span>Checkout & Order Placement Notice</span>
+                {currentUser?.shippingAddress?.street && (
+                  <div className="p-3.5 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs space-y-1">
+                    <div className="font-bold text-[#3A1E0E] flex items-center justify-between">
+                      <span>Delivery Destination</span>
+                      <span className="text-[10px] text-terracotta-600 uppercase font-black">Doorstep Courier</span>
+                    </div>
+                    <p className="text-[#532D16]">
+                      {currentUser.shippingAddress.street}
+                      {currentUser.shippingAddress.apartment ? `, ${currentUser.shippingAddress.apartment}` : ''}
+                    </p>
+                    <p className="text-[#8A5934]">
+                      {currentUser.shippingAddress.city}, {currentUser.shippingAddress.state} {currentUser.shippingAddress.postalCode} • {currentUser.shippingAddress.country}
+                    </p>
                   </div>
-                  <p className="leading-relaxed text-[#6E4022]">
-                    Online payment verification and automated order dispatch (via <code>POST /api/v1/orders</code>) are scheduled for the next backend release.
-                  </p>
-                  <p className="leading-relaxed text-[#6E4022]">
-                    Your selected coffees, roast grinds, and bag sizes remain safely saved in your cart.
-                  </p>
-                </div>
+                )}
 
                 <div className="p-4 rounded-2xl bg-white border border-[#EBDCCE] space-y-3">
                   <h4 className="font-serif font-bold text-sm text-[#3A1E0E] border-b border-[#EBDCCE] pb-2">
@@ -195,21 +243,32 @@ export const CartDrawer: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-col gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={isPlacingOrder}
+                    onClick={handlePlaceOrder}
+                    className="w-full py-3.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-xs shadow-glow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isPlacingOrder ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Scheduling Fresh Roast...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Place Fresh Roast Order ({formatCurrency(finalTotal)})</span>
+                      </>
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setCheckoutStep('cart')}
-                    className="flex-1 py-2.5 rounded-xl border border-[#D5BC9F] text-[#6E4022] hover:bg-white text-xs font-bold transition-colors"
+                    className="w-full py-2.5 rounded-xl border border-[#D5BC9F] text-[#6E4022] hover:bg-white text-xs font-bold transition-colors"
                   >
                     ← Back to Cart
                   </button>
-                  <Link
-                    to="/shop"
-                    onClick={() => setIsCartOpen(false)}
-                    className="flex-1 py-2.5 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-colors text-center shadow-soft"
-                  >
-                    Continue Shopping
-                  </Link>
                 </div>
               </div>
             ) : cart.length === 0 ? (
