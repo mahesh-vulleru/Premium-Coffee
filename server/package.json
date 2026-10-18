@@ -12,6 +12,8 @@
     "provision:admin": "tsx src/scripts/provision-admin.ts",
     "test": "tsx test-connection.ts",
     "test:isolation": "tsx test-auth-isolation.ts",
+    "test:wholesale": "tsx test-wholesale-portal.ts",
+    "clean:tests": "tsx src/scripts/cleanup-test-data.ts",
     "lint": "oxlint"
   },
   "keywords": [

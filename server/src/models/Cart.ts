@@ -23,13 +23,13 @@ const CartItemSchema = new Schema<ICartItem>(
     grind: {
       type: String,
       required: true,
-      enum: ['Whole Bean', 'French Press', 'Pour Over', 'Espresso', 'Cold Brew'],
+      enum: ['Whole Bean', 'French Press', 'Pour Over', 'Espresso', 'Cold Brew', 'Commercial Bulk Grind'],
       default: 'Whole Bean',
     },
     size: {
       type: String,
       required: true,
-      enum: ['250g', '500g', '1kg'],
+      enum: ['250g', '500g', '1kg', '5kg', '10kg'],
       default: '250g',
     },
     frequency: {

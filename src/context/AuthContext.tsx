@@ -13,7 +13,6 @@ const API_BASE = '/api/v1';
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [activeInvitationTokens, setActiveInvitationTokens] = useState<string[]>([]);
   const [isInitializing, setIsInitializing] = useState(true);
 
   // Fetch all users (admin-only)
@@ -33,23 +32,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Fetch admin tokens (admin-only)
-  const fetchAdminTokens = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/admin/tokens`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.tokens)) {
-          setActiveInvitationTokens(data.tokens.map((t: { token: string }) => t.token));
-        }
-      }
-    } catch (err) {
-      console.warn('[Auth] Unable to fetch admin tokens:', err);
-    }
-  }, []);
-
   // Check current session on mount via /auth/me
   useEffect(() => {
     let isMounted = true;
@@ -65,7 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCurrentUser(data.user);
             if (data.user.role === 'admin') {
               fetchAllUsers();
-              fetchAdminTokens();
             }
           }
         } else if (isMounted) {
@@ -84,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
     };
-  }, [fetchAllUsers, fetchAdminTokens]);
+  }, [fetchAllUsers]);
 
 
   const login = async (
@@ -111,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(data.user);
       if (data.user.role === 'admin') {
         fetchAllUsers();
-        fetchAdminTokens();
       }
 
       return { success: true, user: data.user };
@@ -135,7 +115,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setCurrentUser(null);
       setAllUsers([]);
-      setActiveInvitationTokens([]);
     }
   };
 
@@ -225,7 +204,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setCurrentUser(data.user);
       fetchAllUsers();
-      fetchAdminTokens();
 
       return { success: true, user: data.user };
     } catch (err) {
@@ -334,7 +312,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateProfile,
         approveWholesaleUser,
         rejectWholesaleUser,
-        activeInvitationTokens,
       }}
     >
       {children}

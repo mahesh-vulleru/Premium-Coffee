@@ -90,6 +90,20 @@ export async function registerWholesale(req: Request, res: Response) {
     });
   }
 
+  // Prevent duplicate wholesale registrations using identical commercial Tax/GST ID
+  if (taxId && typeof taxId === 'string') {
+    const existingTax = await User.findOne({
+      'wholesaleDetails.taxId': taxId.trim(),
+      'wholesaleDetails.status': { $in: ['pending', 'approved'] },
+    });
+    if (existingTax) {
+      return res.status(409).json({
+        success: false,
+        error: 'A wholesale partner account or pending application is already registered with this Tax / Business ID.',
+      });
+    }
+  }
+
   // Server strictly enforces role = 'wholesale' and status = 'pending'
   const user = await User.create({
     name: contactName,

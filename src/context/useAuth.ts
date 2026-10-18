@@ -19,7 +19,7 @@ export interface AuthContextType {
   updateProfile: (payload: UpdateProfilePayload) => Promise<{ success: boolean; error?: string; user?: User }>;
   approveWholesaleUser: (userId: string) => void;
   rejectWholesaleUser: (userId: string, reason?: string) => void;
-  activeInvitationTokens: string[];
+  activeInvitationTokens?: string[];
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

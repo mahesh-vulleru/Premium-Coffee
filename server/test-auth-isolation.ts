@@ -3,6 +3,7 @@ import { connectDB, disconnectDB } from './src/config/db.js';
 import { Product } from './src/models/Product.js';
 import { Cart } from './src/models/Cart.js';
 import { provisionAdminAccount } from './src/scripts/provision-admin.js';
+import { cleanupTestData } from './src/scripts/cleanup-test-data.js';
 import { getSafeInternalRedirect } from '../src/utils/authRedirect.js';
 
 async function runIsolationTestSuite() {
@@ -359,6 +360,11 @@ async function runIsolationTestSuite() {
   } finally {
     if (server) {
       server.close();
+    }
+    try {
+      await cleanupTestData();
+    } catch (e) {
+      console.warn('Test cleanup warning:', e);
     }
     await disconnectDB();
   }
