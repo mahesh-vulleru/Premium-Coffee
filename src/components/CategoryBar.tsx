@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
-const CATEGORIES = [
+interface CategoryItem {
+  id: string;
+  label: string;
+}
+
+const DEFAULT_CATEGORIES: CategoryItem[] = [
   { id: 'cappuccino', label: 'Cappuccino' },
   { id: 'espresso', label: 'Espresso' },
   { id: 'moca', label: 'Moca' },
@@ -15,6 +20,32 @@ export const CategoryBar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedCategory, setSelectedCategory } = useCart();
+  const [categories, setCategories] = useState<CategoryItem[]>(DEFAULT_CATEGORIES);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCategories() {
+      try {
+        const res = await fetch('/api/v1/categories');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
+            const mapped: CategoryItem[] = data.categories.map((c: any) => ({
+              id: c.slug,
+              label: c.name,
+            }));
+            if (isMounted) setCategories(mapped);
+          }
+        }
+      } catch {
+        // Graceful fallback to default categories
+      }
+    }
+    loadCategories();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSelect = (catId: string) => {
     const nextCategory = selectedCategory === catId ? 'all' : catId;
@@ -31,7 +62,7 @@ export const CategoryBar: React.FC = () => {
     <div className="bg-[#3A1E0E] text-[#F5ECE1] border-y border-[#532D16] py-3.5 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between overflow-x-auto gap-4 scrollbar-none py-1">
-          {CATEGORIES.map((cat, index) => {
+          {categories.map((cat, index) => {
             const isSelected = selectedCategory === cat.id;
 
             return (
@@ -49,7 +80,7 @@ export const CategoryBar: React.FC = () => {
                 </button>
 
                 {/* Coffee Bean Icon separator between items */}
-                {index < CATEGORIES.length - 1 && (
+                {index < categories.length - 1 && (
                   <span className="text-[#AF8359] select-none text-xs opacity-70">
                     ☕
                   </span>

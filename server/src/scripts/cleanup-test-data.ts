@@ -7,6 +7,9 @@ import { Newsletter } from '../models/Newsletter.js';
 import { Product } from '../models/Product.js';
 import { InventoryLog } from '../models/InventoryLog.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { Promotion } from '../models/Promotion.js';
+import { Category } from '../models/Category.js';
+import { StorefrontContent } from '../models/StorefrontContent.js';
 import { env } from '../config/env.js';
 
 export const GENUINE_EMAILS = new Set([
@@ -120,6 +123,31 @@ export async function cleanupTestData() {
     });
     if (deletedAuditLogs.deletedCount > 0) {
       console.log(`✔ Cleaned ${deletedAuditLogs.deletedCount} test audit logs`);
+    }
+
+    // 8. Delete test promotions, categories, and storefront content
+    const deletedPromos = await Promotion.deleteMany({
+      $and: [
+        { code: { $ne: 'FIREDUP15' } },
+        { code: { $regex: /^TEST/i } }
+      ]
+    });
+    if (deletedPromos.deletedCount > 0) {
+      console.log(`✔ Cleaned ${deletedPromos.deletedCount} test promotions`);
+    }
+
+    const deletedCats = await Category.deleteMany({
+      slug: { $regex: /^test-/i }
+    });
+    if (deletedCats.deletedCount > 0) {
+      console.log(`✔ Cleaned ${deletedCats.deletedCount} test categories`);
+    }
+
+    const deletedContent = await StorefrontContent.deleteMany({
+      key: { $regex: /^test-/i }
+    });
+    if (deletedContent.deletedCount > 0) {
+      console.log(`✔ Cleaned ${deletedContent.deletedCount} test storefront content items`);
     }
   } else {
     console.log('✔ No test fixtures found. Database already clean.');

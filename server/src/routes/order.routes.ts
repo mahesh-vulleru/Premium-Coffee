@@ -3,6 +3,7 @@ import {
   getCustomerOrders,
   getCustomerOrderById,
   createRetailOrder,
+  validateCoupon,
 } from '../controllers/order.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -14,6 +15,7 @@ router.use(requireAuth);
 router.get('/', getCustomerOrders);
 router.get('/:id', getCustomerOrderById);
 router.post('/', createRetailOrder);
+router.post('/validate-coupon', validateCoupon);
 
 export default router;
 

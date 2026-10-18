@@ -4,7 +4,7 @@
 
 [![Lint Status](https://img.shields.io/badge/Oxlint-Passing-success)](https://oxc.rs)
 [![Build Status](https://img.shields.io/badge/Vite%20Build-Passing-success)](https://vitejs.dev)
-[![Backend Tests](https://img.shields.io/badge/All%20Suites-50%2F50%20Passed-success)](#testing--quality-verification)
+[![Backend Tests](https://img.shields.io/badge/All%20Suites-71%2F71%20Passed-success)](#testing--quality-verification)
 [![Currency](https://img.shields.io/badge/Currency-INR%20(%E2%82%B9)-amber)](#indian-rupee-inr-pricing--currency-standard)
 
 ---
@@ -281,11 +281,14 @@ npm run server:test-customer
 # 7. Shop Maintenance: Product & Inventory Suite (11/11 Passed)
 npm run server:test-maintenance
 
-# 8. Safe Development Test Data Cleanup (preserves genuine accounts)
+# 8. Shop Maintenance: Pricing, Promotions, Categories & Content (10/10 Passed)
+npm run server:test-phase3
+
+# 9. Safe Development Test Data Cleanup (preserves genuine accounts)
 npm run server:clean-tests
 ```
 
-### Summary of Automated Test Suites (61/61 Passed)
+### Summary of Automated Test Suites (71/71 Passed)
 
 | Suite | Command | Tests | Coverage Highlights |
 | :--- | :--- | :---: | :--- |
@@ -293,7 +296,8 @@ npm run server:clean-tests
 | **Auth & Isolation** | `npm run server:test-isolation` | **14/14** | Open redirect prevention, cross-account cart & wishlist isolation, inventory stock clamping, admin approvals. |
 | **Wholesale B2B** | `npm run server:test-wholesale` | **15/15** | Commercial catalogue, 5kg MOQ enforcement, volume tiers (30%–40%), tax invoices, reorder engine, admin rejection with reasons. |
 | **Customer Commerce** | `npm run server:test-customer` | **10/10** | Default India country, address validation, authoritative pricing, cart isolation, retail checkout, stock deduction, promo code (`FIREDUP15`), order privacy boundary, newsletter lifecycle. |
-| **Shop Maintenance** | `npm run server:test-maintenance` | **11/11** | Product CRUD & unique slugs, unpublished/archived storefront protection, warehouse stock KPIs, mandatory stock adjustment reasons ($\ge 3$ chars), negative stock rejection, inventory movement logs, audit logs. |
+| **Shop Maintenance (P2)** | `npm run server:test-maintenance` | **11/11** | Product CRUD & unique slugs, unpublished/archived storefront protection, warehouse stock KPIs, mandatory stock adjustment reasons ($\ge 3$ chars), negative stock rejection, inventory movement logs, audit logs. |
+| **Shop Maintenance (P3)** | `npm run server:test-phase3` | **10/10** | Retail pricing validations, date windows, authoritative effective price calculations, order snapshot immutability, promotion engine & coupon validation, category CRUD & safe archival protection, dynamic storefront content & publication toggling, full audit logging. |
 
 ---
 
@@ -316,7 +320,7 @@ All backend endpoints are prefixed with `/api/v1`:
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/` | Authenticated | Fetch authenticated user's persistent cart with server pricing |
-| `POST` | `/items` | Authenticated | Add item or increment quantity (stock-clamped) |
+| `POST` | `/` or `/items` | Authenticated | Add item or increment quantity (stock-clamped) |
 | `PUT` | `/items/:itemId` | Authenticated | Update quantity or grind selection |
 | `DELETE` | `/items/:itemId` | Authenticated | Remove specific item |
 | `POST` | `/sync` | Authenticated | Synchronize guest localStorage cart to cloud database |
@@ -335,7 +339,18 @@ All backend endpoints are prefixed with `/api/v1`:
 | :--- | :--- | :--- | :--- |
 | `GET` | `/` | Authenticated | List authenticated customer's order history |
 | `GET` | `/:id` | Authenticated | Retrieve single order details with ownership boundary |
-| `POST` | `/` | Authenticated | Place retail order from active cart with promo code & stock deduction |
+| `POST` | `/` | Authenticated | Place retail order with locked price snapshots & stock deduction |
+| `POST` | `/validate-coupon` | Authenticated | Authoritatively validate promo coupon against cart subtotal |
+
+### Category Taxonomy (`/api/v1/categories`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Public | Retrieve active categories sorted by displayOrder |
+
+### Storefront Content (`/api/v1/content`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/?type=...` | Public | Retrieve active, published storefront announcements, banners, and cards |
 
 ### Wholesale Portal (`/api/v1/wholesale`)
 | Method | Endpoint | Access | Description |
@@ -346,31 +361,36 @@ All backend endpoints are prefixed with `/api/v1`:
 | `GET` | `/orders/:id/invoice` | Approved Wholesale | Download GST-compliant tax invoice |
 | `POST` | `/orders/:id/reorder` | Approved Wholesale | Populate cart from previous bulk order |
 
-### Newsletter (`/api/v1/newsletter`)
-| Method | Endpoint | Access | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/subscribe` | Public | Consent-based email subscription (handles 409 duplicates) |
-| `GET` | `/status` | Public | Check subscription status by email |
-
 ### Administration (`/api/v1/admin`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/stats` | Admin only | Database metrics: users, revenue, active accounts, inventory |
-| `GET` | `/pending-wholesale` | Admin only | List commercial partner applications awaiting review |
-| `POST` | `/approve-wholesale/:id`| Admin only | Approve wholesale account and unlock tiered pricing |
-| `POST` | `/reject-wholesale/:id` | Admin only | Reject wholesale application with custom feedback reason |
-| `GET` | `/orders` | Admin only | Review all commercial and retail orders |
-| `PATCH` | `/orders/:id/status` | Admin only | Update order status (`roasting`, `dispatched`, etc.) |
+| `GET` | `/metrics` | Admin only | Database KPIs: users, orders, inventory units, low-stock SKUs |
 | `GET` | `/products` | Admin only | Full product catalogue with search, pagination, and status filters |
 | `POST` | `/products` | Admin only | Create new specialty roast with auto-slug or custom unique slug |
-| `GET` | `/products/:id` | Admin only | Fetch full roast specification for editing or preview |
-| `PUT` | `/products/:id` | Admin only | Update roast details, pricing, threshold, notes, or tags |
+| `PUT`/`PATCH` | `/products/:id` | Admin only | Update roast details, pricing, threshold, notes, or tags |
 | `PATCH` | `/products/:id/publication` | Admin only | Toggle publication status (`isPublished`) |
 | `DELETE` | `/products/:id` | Admin only | Safe archival (`isArchived: true, isPublished: false`) |
 | `GET` | `/inventory` | Admin only | Real-time warehouse stockroom with low-stock badges & metrics |
 | `POST` | `/inventory/adjust` | Admin only | Atomic stock adjustment with mandatory reason ($\ge 3$ chars) |
 | `GET` | `/inventory/logs` | Admin only | Immutable inventory movement history with actor & reason trail |
-| `GET` | `/audit-logs` | Admin only | Security and administrative audit trail with sensitive data redacted |
+| `GET` | `/pricing` | Admin only | Retail pricing overview with active sale status |
+| `PUT`/`PATCH` | `/pricing/:id` | Admin only | Update retail price, sale price, and date windows with audit logging |
+| `GET` | `/promotions` | Admin only | List all database coupon promotions and usage counters |
+| `POST` | `/promotions` | Admin only | Create percentage/fixed discount coupon with usage & order limits |
+| `PUT`/`PATCH` | `/promotions/:id` | Admin only | Update promotion properties |
+| `PATCH` | `/promotions/:id/status` | Admin only | Toggle promotion active/inactive status |
+| `DELETE` | `/promotions/:id` | Admin only | Archive promotion code |
+| `GET` | `/categories` | Admin only | List all categories with active product reference counts |
+| `POST` | `/categories` | Admin only | Create category with unique slug and display ordering |
+| `PUT`/`PATCH` | `/categories/:id` | Admin only | Update category name, description, icon, or slug |
+| `PATCH` | `/categories/:id/status` | Admin only | Toggle category active status |
+| `DELETE` | `/categories/:id` | Admin only | Safe archival (strictly blocks if active products reference category) |
+| `GET` | `/content` | Admin only | List all storefront content items |
+| `POST` | `/content` | Admin only | Create announcement bar or promo card with sanitized URLs |
+| `PUT`/`PATCH` | `/content/:id` | Admin only | Update storefront content item |
+| `PATCH` | `/content/:id/publication` | Admin only | Toggle publication status |
+| `DELETE` | `/content/:id` | Admin only | Delete storefront content item |
+| `GET` | `/audit-logs` | Admin only | Comprehensive administrative audit trail |
 
 ### Health Check (`/api/v1/health`)
 | Method | Endpoint | Access | Description |

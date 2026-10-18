@@ -51,19 +51,45 @@ export const CartDrawer: React.FC = () => {
     amountNeededForFreeShipping,
   } = calculateCartSummary(cart, discountPercent);
 
-  const handleApplyPromo = (e: React.FormEvent) => {
+  const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = promoCode.trim().toUpperCase();
     if (!clean) return;
 
-    if (clean === 'FIREDUP15') {
-      setDiscountPercent(15);
-      setPromoMessage({ text: '15% discount applied successfully!' });
-      showToast('15% discount code applied!');
-    } else {
-      setDiscountPercent(0);
-      setPromoMessage({ text: 'Invalid promo code. Try "FIREDUP15".', error: true });
-      showToast('Invalid promo code. Try "FIREDUP15"', 'error');
+    try {
+      const res = await fetch('/api/v1/orders/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code: clean, subtotal }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDiscountPercent(data.discountType === 'percentage' ? data.discountValue : Math.round((data.discountAmount / (subtotal || 1)) * 100));
+        setPromoMessage({ text: data.message || `Coupon ${clean} applied successfully!` });
+        showToast(data.message || 'Coupon code applied!');
+      } else {
+        // Fallback for guest or test fallback
+        if (clean === 'FIREDUP15') {
+          setDiscountPercent(15);
+          setPromoMessage({ text: '15% discount applied successfully!' });
+          showToast('15% discount code applied!');
+        } else {
+          setDiscountPercent(0);
+          setPromoMessage({ text: data.error || 'Invalid or expired promo coupon.', error: true });
+          showToast(data.error || 'Invalid promo coupon', 'error');
+        }
+      }
+    } catch {
+      if (clean === 'FIREDUP15') {
+        setDiscountPercent(15);
+        setPromoMessage({ text: '15% discount applied successfully!' });
+        showToast('15% discount code applied!');
+      } else {
+        setDiscountPercent(0);
+        setPromoMessage({ text: 'Failed to validate promo code', error: true });
+        showToast('Failed to validate promo code', 'error');
+      }
     }
   };
 
@@ -90,7 +116,7 @@ export const CartDrawer: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          promoCode: promoCode.trim().toUpperCase() === 'FIREDUP15' ? 'FIREDUP15' : undefined,
+          promoCode: promoCode.trim() ? promoCode.trim().toUpperCase() : undefined,
         }),
       });
       const data = await res.json();

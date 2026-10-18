@@ -6,7 +6,8 @@ export type CoffeeCategory =
   | 'moca'
   | 'latte'
   | 'americano'
-  | 'cold_brew';
+  | 'cold_brew'
+  | (string & {});
 
 export type RoastLevel = 'Light' | 'Medium' | 'Medium-Dark' | 'Dark';
 export type ProductTag = 'new_arrivals' | 'best_sellers' | 'top_rates';
@@ -68,7 +69,7 @@ const ProductSchema = new Schema<IProduct>(
     category: {
       type: String,
       required: true,
-      enum: ['cappuccino', 'espresso', 'moca', 'latte', 'americano', 'cold_brew'],
+      trim: true,
       index: true,
     },
     price: { type: Number, required: true, min: 0 },

@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD) — Firedup Specialty Coffee
 
 **Project:** Firedup Specialty Coffee Full-Stack E-Commerce Platform  
-**Version:** 2.4.0  
+**Version:** 2.5.0 (Phase 3 Complete)  
 **Target Platform:** Web (Desktop, Tablet, Mobile)  
 **Currency Standard:** Indian Rupee (INR / ₹)  
 **Status:** Active Production-Ready Development  
@@ -262,15 +262,76 @@ interface IInventoryLog {
 ```typescript
 interface IAuditLog {
   action: string;
-  actorId?: Types.ObjectId;
-  actorEmail?: string;
-  actorRole: string;
-  targetModel: string;
-  targetId?: string;
-  details?: Record<string, any>; // Sensitive fields automatically redacted
+  actor: {
+    userId?: Types.ObjectId;
+    name: string;
+    email: string;
+    role: string;
+  };
+  resource: string;
+  resourceId?: string;
+  details?: Record<string, any>;
   ipAddress?: string;
-  userAgent?: string;
+  timestamp: Date;
+}
+```
+
+### 5.9 Promotion & Coupon Model (`Promotion.ts`)
+```typescript
+interface IPromotion {
+  code: string; // Unique, uppercase alphanumeric coupon code
+  description: string;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number; // e.g. 15 for 15% or 100 for ₹100
+  minOrderAmount?: number;
+  maxDiscountAmount?: number;
+  startDate?: Date;
+  endDate?: Date;
+  usageLimit?: number;
+  usageCount: number; // Atomic increments on checkout
+  isActive: boolean;
+  isArchived: boolean;
   createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### 5.10 Category Taxonomy Model (`Category.ts`)
+```typescript
+interface ICategory {
+  slug: string; // Unique, lowercase, URL-friendly slug
+  name: string;
+  description?: string;
+  icon?: string;
+  image?: string;
+  displayOrder: number;
+  isActive: boolean;
+  isArchived: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### 5.11 Storefront Dynamic Content Model (`StorefrontContent.ts`)
+```typescript
+interface IStorefrontContent {
+  key: string; // Unique identifier key
+  contentType: 'announcement' | 'banner' | 'promo_card' | 'featured_section';
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  description?: string;
+  linkText?: string;
+  linkUrl?: string; // Sanitized URL (blocks javascript: and pseudo-protocols)
+  countdownEndDate?: Date;
+  displayOrder: number;
+  isActive: boolean;
+  isPublished: boolean;
+  startDate?: Date;
+  endDate?: Date;
+  metadata?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -280,17 +341,20 @@ interface IAuditLog {
 
 1. **Role-Based Access Control (RBAC):** Backend route middleware strictly enforces access permissions (`requireAuth`, `requireRole('admin')`, `requireApprovedWholesale`).
 2. **Authoritative Server Pricing:** Cart totals, discounts, and order amounts are calculated server-side from database prices, ignoring arbitrary client values.
-3. **Data Boundary Protection:** Users cannot view or modify carts, wishlists, addresses, or orders belonging to another user.
-4. **Credential Confidentiality:** Passwords are never sent over API responses (`toJSON` excludes `passwordHash`). Admin secret invitation tokens are never rendered in frontend components.
-5. **Mandatory Inventory Movement Justifications:** Every stock adjustment must record previous/new stock, quantity delta, and an operational reason ($\ge 3$ characters). Negative inventory adjustments and overselling are strictly rejected.
-6. **Storefront Public Isolation:** Unpublished or archived roasts are automatically excluded from public storefront queries (`$ne: true`), cart addition, and checkout.
-7. **Safe Data Cleanup:** `cleanupTestData()` safely clears test fixtures matching automated patterns while preserving genuine user records.
+3. **Effective Pricing & Date Windows:** Products with active `promotionPrice` inside valid date ranges calculate `effectivePrice` dynamically. When promotions expire or dates elapse, the price automatically reverts without cron jobs.
+4. **Order Price Snapshot Immutability:** When an order is placed, line item prices (`unitPrice`, `lineTotal`) are permanently frozen in the order document. Future retail price or promotion adjustments never mutate past orders.
+5. **Safe Category Archival:** Categories cannot be archived or removed if active products reference their slug, returning a clean 400 error and active product count.
+6. **Data Boundary Protection:** Users cannot view or modify carts, wishlists, addresses, or orders belonging to another user.
+7. **Credential Confidentiality:** Passwords are never sent over API responses (`toJSON` excludes `passwordHash`). Admin secret invitation tokens are never rendered in frontend components.
+8. **Mandatory Inventory Movement Justifications:** Every stock adjustment must record previous/new stock, quantity delta, and an operational reason ($\ge 3$ characters). Negative inventory adjustments and overselling are strictly rejected.
+9. **Storefront Public Isolation:** Unpublished or archived roasts and content items are automatically excluded from public storefront queries (`$ne: true`), cart addition, and checkout.
+10. **Safe Data Cleanup:** `cleanupTestData()` safely clears test fixtures matching automated patterns while preserving genuine user records.
 
 ---
 
 ## 7. Verification & Quality Assurance Suite
 
-The system maintains 100% passing automated test coverage across five distinct test suites (61/61 tests passing):
+The system maintains 100% passing automated test coverage across six distinct test suites (**71/71 tests passing**):
 
 ```bash
 # 1. Frontend & Backend Linting
@@ -307,6 +371,7 @@ npm run server:test-isolation   # 14/14 Auth & RBAC Data Isolation
 npm run server:test-wholesale   # 15/15 Wholesale B2B Portal
 npm run server:test-customer    # 10/10 Customer Dashboard & Commerce
 npm run server:test-maintenance # 11/11 Shop Maintenance (Product & Inventory)
+npm run server:test-phase3      # 10/10 Shop Maintenance (Pricing, Promotions, Categories & Content)
 ```
 
 ---

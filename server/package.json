@@ -15,6 +15,7 @@
     "test:wholesale": "tsx test-wholesale-portal.ts",
     "test:customer": "tsx test-customer-dashboard.ts",
     "test:maintenance": "tsx test-shop-maintenance.ts",
+    "test:phase3": "tsx test-shop-phase3.ts",
     "clean:tests": "tsx src/scripts/cleanup-test-data.ts",
     "lint": "oxlint"
   },

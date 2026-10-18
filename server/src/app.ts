@@ -11,6 +11,8 @@ import wishlistRoutes from './routes/wishlist.routes.js';
 import wholesaleRoutes from './routes/wholesale.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import newsletterRoutes from './routes/newsletter.routes.js';
+import categoryRoutes from './routes/category.routes.js';
+import contentRoutes from './routes/content.routes.js';
 import {
   notFoundHandler,
   globalErrorHandler,
@@ -41,6 +43,8 @@ export function createApp(): Express {
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/admin', adminRoutes);
   app.use('/api/v1/products', productRoutes);
+  app.use('/api/v1/categories', categoryRoutes);
+  app.use('/api/v1/content', contentRoutes);
   app.use('/api/v1/cart', cartRoutes);
   app.use('/api/v1/wishlist', wishlistRoutes);
   app.use('/api/v1/wholesale', wholesaleRoutes);

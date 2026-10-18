@@ -4,7 +4,9 @@ import { Order, type IOrderItem } from '../models/Order.js';
 import { Cart } from '../models/Cart.js';
 import { Product } from '../models/Product.js';
 import { InventoryLog } from '../models/InventoryLog.js';
+import { Promotion } from '../models/Promotion.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { getEffectiveProductPrice } from '../utils/pricingHelper.js';
 
 // GET /api/v1/orders
 export async function getCustomerOrders(req: AuthenticatedRequest, res: Response) {
@@ -96,7 +98,8 @@ export async function createRetailOrder(req: AuthenticatedRequest, res: Response
       }
 
       const mult = sizeMultipliers[item.size] || 1.0;
-      const unitPrice = Math.round(product.price * mult);
+      const { effectivePrice } = getEffectiveProductPrice(product);
+      const unitPrice = Math.round(effectivePrice * mult);
       const lineTotal = unitPrice * item.quantity;
       subtotal += lineTotal;
 
@@ -122,10 +125,83 @@ export async function createRetailOrder(req: AuthenticatedRequest, res: Response
 
     // Apply promo code if valid
     let discountPercent = 0;
-    if (promoCode && typeof promoCode === 'string' && promoCode.trim().toUpperCase() === 'FIREDUP15') {
-      discountPercent = 15;
+    let discountAmount = 0;
+    let appliedPromo: any = null;
+    let discountTier: string | undefined = undefined;
+
+    if (promoCode && typeof promoCode === 'string' && promoCode.trim()) {
+      const codeClean = promoCode.trim().toUpperCase();
+      const now = new Date();
+
+      let promo = await Promotion.findOne({ code: codeClean, isArchived: { $ne: true } });
+      if (!promo && codeClean === 'FIREDUP15') {
+        promo = await Promotion.create({
+          code: 'FIREDUP15',
+          description: '15% off first order for Roaster Club members',
+          discountType: 'percentage',
+          discountValue: 15,
+          minOrderAmount: 0,
+          isActive: true,
+          isArchived: false,
+        });
+      }
+
+      if (!promo) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid promotion coupon code: "${codeClean}".`,
+        });
+      }
+
+      if (!promo.isActive) {
+        return res.status(400).json({
+          success: false,
+          error: `Promotion coupon "${codeClean}" is no longer active.`,
+        });
+      }
+
+      if (promo.startDate && now < new Date(promo.startDate)) {
+        return res.status(400).json({
+          success: false,
+          error: `Promotion coupon "${codeClean}" has not started yet.`,
+        });
+      }
+
+      if (promo.endDate && now > new Date(promo.endDate)) {
+        return res.status(400).json({
+          success: false,
+          error: `Promotion coupon "${codeClean}" has expired.`,
+        });
+      }
+
+      if (promo.minOrderAmount && subtotal < promo.minOrderAmount) {
+        return res.status(400).json({
+          success: false,
+          error: `Coupon "${codeClean}" requires a minimum order subtotal of ₹${promo.minOrderAmount}.`,
+        });
+      }
+
+      if (promo.usageLimit && promo.usageCount >= promo.usageLimit) {
+        return res.status(400).json({
+          success: false,
+          error: `Promotion coupon "${codeClean}" usage limit has been reached.`,
+        });
+      }
+
+      if (promo.discountType === 'percentage') {
+        discountPercent = promo.discountValue;
+        discountAmount = Math.round(((subtotal * promo.discountValue) / 100) * 100) / 100;
+        if (promo.maxDiscountAmount && discountAmount > promo.maxDiscountAmount) {
+          discountAmount = promo.maxDiscountAmount;
+        }
+      } else {
+        discountAmount = Math.min(subtotal, promo.discountValue);
+      }
+
+      discountAmount = Math.max(0, Math.min(subtotal, discountAmount));
+      appliedPromo = promo;
+      discountTier = `Promo ${promo.code}`;
     }
-    const discountAmount = Math.round(((subtotal * discountPercent) / 100) * 100) / 100;
 
     // Free shipping threshold ₹999
     const shippingFee = subtotal >= 999 ? 0 : 99;
@@ -171,7 +247,7 @@ export async function createRetailOrder(req: AuthenticatedRequest, res: Response
       items: orderItems,
       totalKg,
       subtotal,
-      discountTier: discountPercent > 0 ? 'Promo FIREDUP15' : undefined,
+      discountTier,
       discountPercent,
       discountAmount,
       taxPercent,
@@ -189,6 +265,11 @@ export async function createRetailOrder(req: AuthenticatedRequest, res: Response
       orderStatus: 'received',
       notes: notes ? String(notes).trim() : undefined,
     });
+
+    // Atomically increment promotion usage count
+    if (appliedPromo) {
+      await Promotion.findByIdAndUpdate(appliedPromo._id, { $inc: { usageCount: 1 } });
+    }
 
     // Record InventoryLog for each item deducted
     try {
@@ -235,4 +316,82 @@ export async function createRetailOrder(req: AuthenticatedRequest, res: Response
     return res.status(500).json({ success: false, error: 'Failed to process order' });
   }
 }
+
+/**
+ * POST /api/v1/orders/validate-coupon
+ * Validates a coupon code against current cart subtotal
+ */
+export async function validateCoupon(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { code } = req.body;
+    const subtotal = req.body.subtotal !== undefined ? req.body.subtotal : req.body.orderTotal ?? 0;
+    if (!code || typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ success: false, error: 'Promo coupon code is required' });
+    }
+
+    const codeClean = code.trim().toUpperCase();
+    const now = new Date();
+
+    let promo = await Promotion.findOne({ code: codeClean, isArchived: { $ne: true } });
+    if (!promo && codeClean === 'FIREDUP15') {
+      promo = await Promotion.create({
+        code: 'FIREDUP15',
+        description: '15% off first order for Roaster Club members',
+        discountType: 'percentage',
+        discountValue: 15,
+        minOrderAmount: 0,
+        isActive: true,
+        isArchived: false,
+      });
+    }
+
+    if (!promo) {
+      return res.status(404).json({ success: false, valid: false, error: `Invalid coupon code "${codeClean}"` });
+    }
+    if (!promo.isActive) {
+      return res.status(400).json({ success: false, valid: false, error: `Coupon "${codeClean}" is currently inactive` });
+    }
+    if (promo.startDate && now < new Date(promo.startDate)) {
+      return res.status(400).json({ success: false, valid: false, error: `Coupon "${codeClean}" has not started yet` });
+    }
+    if (promo.endDate && now > new Date(promo.endDate)) {
+      return res.status(400).json({ success: false, valid: false, error: `Coupon "${codeClean}" has expired` });
+    }
+    if (promo.usageLimit && promo.usageCount >= promo.usageLimit) {
+      return res.status(400).json({ success: false, valid: false, error: `Coupon "${codeClean}" limit reached` });
+    }
+    if (promo.minOrderAmount && Number(subtotal) < promo.minOrderAmount) {
+      return res.status(400).json({
+        success: false,
+        valid: false,
+        error: `Order subtotal must be at least ₹${promo.minOrderAmount} to use this coupon`,
+      });
+    }
+
+    const subtotalNum = Number(subtotal) || 0;
+    let calculatedDiscount = 0;
+    if (promo.discountType === 'percentage') {
+      calculatedDiscount = Math.round(((subtotalNum * promo.discountValue) / 100) * 100) / 100;
+      if (promo.maxDiscountAmount) {
+        calculatedDiscount = Math.min(calculatedDiscount, promo.maxDiscountAmount);
+      }
+    } else {
+      calculatedDiscount = Math.min(subtotalNum, promo.discountValue);
+    }
+
+    return res.status(200).json({
+      success: true,
+      valid: true,
+      code: promo.code,
+      discountType: promo.discountType,
+      discountValue: promo.discountValue,
+      discountAmount: calculatedDiscount,
+      message: `Coupon applied: ${promo.description}`,
+    });
+  } catch (error) {
+    console.error('[Order Controller] Error validating coupon:', error);
+    return res.status(500).json({ success: false, error: 'Failed to validate coupon' });
+  }
+}
+
 

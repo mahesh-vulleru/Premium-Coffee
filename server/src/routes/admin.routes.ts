@@ -23,6 +23,31 @@ import {
   listAdminInventoryLogs,
   listAdminAuditLogs,
 } from '../controllers/adminShop.controller.js';
+import {
+  listAdminPricing,
+  updateAdminPricing,
+} from '../controllers/adminPricing.controller.js';
+import {
+  listAdminPromotions,
+  createAdminPromotion,
+  updateAdminPromotion,
+  togglePromotionStatus,
+  archiveAdminPromotion,
+} from '../controllers/adminPromotions.controller.js';
+import {
+  listAdminCategories,
+  createAdminCategory,
+  updateAdminCategory,
+  toggleCategoryStatus,
+  archiveAdminCategory,
+} from '../controllers/adminCategories.controller.js';
+import {
+  listAdminContent,
+  createAdminContent,
+  updateAdminContent,
+  toggleContentPublication,
+  deleteAdminContent,
+} from '../controllers/adminContent.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -53,6 +78,36 @@ router.patch('/products/:id/archive', archiveAdminProduct);
 router.get('/inventory', listAdminInventory);
 router.post('/inventory/:id/adjust', adjustAdminInventory);
 router.get('/inventory/logs', listAdminInventoryLogs);
+
+// Shop Maintenance: Pricing
+router.get('/pricing', listAdminPricing);
+router.put('/pricing/:id', updateAdminPricing);
+router.patch('/pricing/:id', updateAdminPricing);
+
+// Shop Maintenance: Promotions
+router.get('/promotions', listAdminPromotions);
+router.post('/promotions', createAdminPromotion);
+router.put('/promotions/:id', updateAdminPromotion);
+router.patch('/promotions/:id', updateAdminPromotion);
+router.patch('/promotions/:id/status', togglePromotionStatus);
+router.delete('/promotions/:id', archiveAdminPromotion);
+
+// Shop Maintenance: Categories
+router.get('/categories', listAdminCategories);
+router.post('/categories', createAdminCategory);
+router.put('/categories/:id', updateAdminCategory);
+router.patch('/categories/:id', updateAdminCategory);
+router.patch('/categories/:id/status', toggleCategoryStatus);
+router.delete('/categories/:id', archiveAdminCategory);
+
+// Shop Maintenance: Storefront Content
+router.get('/content', listAdminContent);
+router.post('/content', createAdminContent);
+router.put('/content/:id', updateAdminContent);
+router.patch('/content/:id', updateAdminContent);
+router.patch('/content/:id/publication', toggleContentPublication);
+router.patch('/content/:id/toggle', toggleContentPublication);
+router.delete('/content/:id', deleteAdminContent);
 
 // Shop Maintenance: Audit Logs
 router.get('/audit-logs', listAdminAuditLogs);

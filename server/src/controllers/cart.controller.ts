@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Cart, type ICart } from '../models/Cart.js';
 import { Product, type IProduct } from '../models/Product.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { getEffectiveProductPrice } from '../utils/pricingHelper.js';
 
 // Calculate cart pricing on the server based on authoritative database product prices
 function calculateCartPricing(cart: ICart) {
@@ -20,7 +21,9 @@ function calculateCartPricing(cart: ICart) {
     if (item.size === '500g') sizeMultiplier = 1.85;
     else if (item.size === '1kg') sizeMultiplier = 3.4;
 
-    const unitPrice = Math.round(product.price * sizeMultiplier);
+    const { effectivePrice, isSale, salePrice } = getEffectiveProductPrice(product);
+    const unitPrice = Math.round(effectivePrice * sizeMultiplier);
+    const regularUnitPrice = Math.round(product.price * sizeMultiplier);
     const lineTotal = unitPrice * item.quantity;
 
     subtotal += lineTotal;
@@ -34,6 +37,9 @@ function calculateCartPricing(cart: ICart) {
       size: item.size,
       frequency: item.frequency,
       unitPrice,
+      regularUnitPrice,
+      isSale,
+      salePrice,
       lineTotal,
     });
   }

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Product } from '../models/Product.js';
+import { getEffectiveProductPrice } from '../utils/pricingHelper.js';
 
 // GET /api/v1/products
 export async function getProducts(req: Request, res: Response) {
@@ -83,7 +84,16 @@ export async function getProducts(req: Request, res: Response) {
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum) || 1,
-      products: products.map((p) => p.toJSON()),
+      products: products.map((p) => {
+        const effective = getEffectiveProductPrice(p);
+        const json: any = p.toJSON();
+        json.effectivePrice = effective.effectivePrice;
+        if (effective.isSale) {
+          json.isSale = true;
+          json.salePrice = effective.salePrice;
+        }
+        return json;
+      }),
     });
   } catch (error: any) {
     console.error('[Product Controller] Error fetching products:', error);
@@ -130,9 +140,17 @@ export async function getProductById(req: Request, res: Response) {
       });
     }
 
+    const effective = getEffectiveProductPrice(product);
+    const json: any = product.toJSON();
+    json.effectivePrice = effective.effectivePrice;
+    if (effective.isSale) {
+      json.isSale = true;
+      json.salePrice = effective.salePrice;
+    }
+
     return res.status(200).json({
       success: true,
-      product: product.toJSON(),
+      product: json,
     });
   } catch (error: any) {
     console.error('[Product Controller] Error fetching product by ID:', error);

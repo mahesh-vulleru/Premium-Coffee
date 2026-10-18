@@ -2,13 +2,98 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, Flame, Tag, Sparkles } from 'lucide-react';
 
+interface PromoContent {
+  flashDrop?: {
+    title: string;
+    subtitle?: string;
+    badge?: string;
+    description?: string;
+    linkText?: string;
+    linkUrl?: string;
+  };
+  promoBanner?: {
+    title: string;
+    subtitle?: string;
+    badge?: string;
+    description?: string;
+    linkText?: string;
+    linkUrl?: string;
+  };
+}
+
 export const HomePromoSection: React.FC = () => {
+  const [content, setContent] = useState<PromoContent>({
+    flashDrop: {
+      title: 'Fuel Your Morning With Fresh Roast Drops',
+      subtitle: 'Limited Roaster Batch Drop',
+      badge: 'Limited Roaster Batch Drop',
+      description: 'Single-origin micro-lots cupped above 86 points, hand-roasted and shipped within 24 hours of cooling.',
+      linkText: 'View Flash Deals',
+      linkUrl: '/deals',
+    },
+    promoBanner: {
+      title: 'Save 15% on First Order + Free Express Shipping',
+      subtitle: 'Special Promotion',
+      badge: 'Special Promotion',
+      description: 'Use code FIREDUP15 during checkout. Free doorstep delivery unlocked on all coffee orders over ₹999.',
+      linkText: 'Shop Now',
+      linkUrl: '/shop',
+    },
+  });
+
   const [timeLeft, setTimeLeft] = useState({
     days: 4,
     hours: 18,
     mins: 42,
     secs: 20,
   });
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadContent() {
+      try {
+        const res = await fetch('/api/v1/content');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.content)) {
+            const flash = data.content.find((c: any) => c.key === 'home_flash_drop' || c.contentType === 'promo_card');
+            const banner = data.content.find((c: any) => c.key === 'home_promo_banner' || c.contentType === 'banner');
+
+            if (isMounted) {
+              setContent((prev) => ({
+                flashDrop: flash
+                  ? {
+                      title: flash.title || prev.flashDrop?.title || '',
+                      subtitle: flash.subtitle || prev.flashDrop?.subtitle,
+                      badge: flash.badge || prev.flashDrop?.badge,
+                      description: flash.description || prev.flashDrop?.description,
+                      linkText: flash.linkText || prev.flashDrop?.linkText,
+                      linkUrl: flash.linkUrl || prev.flashDrop?.linkUrl,
+                    }
+                  : prev.flashDrop,
+                promoBanner: banner
+                  ? {
+                      title: banner.title || prev.promoBanner?.title || '',
+                      subtitle: banner.subtitle || prev.promoBanner?.subtitle,
+                      badge: banner.badge || prev.promoBanner?.badge,
+                      description: banner.description || prev.promoBanner?.description,
+                      linkText: banner.linkText || prev.promoBanner?.linkText,
+                      linkUrl: banner.linkUrl || prev.promoBanner?.linkUrl,
+                    }
+                  : prev.promoBanner,
+              }));
+            }
+          }
+        }
+      } catch {
+        // Fallback to default content
+      }
+    }
+    loadContent();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -23,6 +108,9 @@ export const HomePromoSection: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const flash = content.flashDrop;
+  const banner = content.promoBanner;
+
   return (
     <section className="py-12 bg-[#FAF6F0] relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -34,15 +122,15 @@ export const HomePromoSection: React.FC = () => {
             <div className="relative z-10 space-y-4">
               <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
                 <Clock className="w-4 h-4 animate-pulse" />
-                <span>Limited Roaster Batch Drop</span>
+                <span>{flash?.badge || 'Limited Roaster Batch Drop'}</span>
               </div>
 
               <h3 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight">
-                Fuel Your Morning With Fresh Roast Drops
+                {flash?.title}
               </h3>
 
               <p className="text-xs sm:text-sm text-[#D5BC9F] max-w-lg leading-relaxed">
-                Single-origin micro-lots cupped above 86 points, hand-roasted and shipped within 24 hours of cooling.
+                {flash?.description}
               </p>
 
               {/* Countdown Digits */}
@@ -70,10 +158,10 @@ export const HomePromoSection: React.FC = () => {
 
             <div className="relative z-10 pt-6 flex flex-wrap items-center gap-4">
               <Link
-                to="/deals"
+                to={flash?.linkUrl || '/deals'}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white hover:bg-slate-100 text-[#2B170E] font-bold text-xs shadow-soft transition-all group/btn"
               >
-                <span>View Flash Deals</span>
+                <span>{flash?.linkText || 'View Flash Deals'}</span>
                 <ArrowRight className="w-3.5 h-3.5 text-terracotta-600 group-hover/btn:translate-x-1 transition-transform" />
               </Link>
               <span className="text-xs text-[#D5BC9F] flex items-center gap-1.5">
@@ -88,15 +176,15 @@ export const HomePromoSection: React.FC = () => {
             <div className="space-y-4">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 text-amber-800 text-[11px] font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>Special Promotion</span>
+                <span>{banner?.badge || 'Special Promotion'}</span>
               </div>
 
               <h3 className="font-serif text-2xl font-bold text-[#3A1E0E] leading-snug">
-                Save 15% on First Order + Free Express Shipping
+                {banner?.title}
               </h3>
 
               <p className="text-xs text-[#6E4022] leading-relaxed">
-                Use code <strong className="text-[#3A1E0E] font-mono">FIREDUP15</strong> during checkout. Free doorstep delivery unlocked on all coffee orders over ₹999.
+                {banner?.description}
               </p>
 
               {/* Promo code badge */}
@@ -118,10 +206,10 @@ export const HomePromoSection: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link
-                to="/shop"
+                to={banner?.linkUrl || '/shop'}
                 className="px-4 py-2 rounded-full bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-colors"
               >
-                Shop Now
+                {banner?.linkText || 'Shop Now'}
               </Link>
             </div>
           </div>
@@ -130,4 +218,3 @@ export const HomePromoSection: React.FC = () => {
     </section>
   );
 };
-
