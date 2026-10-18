@@ -3,6 +3,7 @@ import {
   registerCustomer,
   registerWholesale,
   registerAdmin,
+  registerStaffApplication,
   login,
   logout,
   getMe,
@@ -42,6 +43,11 @@ router.post(
   '/register/admin',
   validateBody(RegisterAdminSchema),
   registerAdmin
+);
+
+router.post(
+  '/register/staff',
+  registerStaffApplication
 );
 
 // Login & Session endpoints

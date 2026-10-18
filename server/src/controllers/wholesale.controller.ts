@@ -589,6 +589,16 @@ export async function createWholesaleOrder(req: AuthenticatedRequest, res: Respo
       paymentMethod: chosenMethod,
       paymentStatus,
       orderStatus: 'received',
+      cancellationStatus: 'none',
+      inventoryRestored: false,
+      statusHistory: [
+        {
+          status: 'received',
+          timestamp: new Date(),
+          note: 'Commercial wholesale order booked under Net 15 commercial credit terms.',
+          updatedBy: req.user.name || 'Wholesale Partner',
+        },
+      ],
       notes: notes ? String(notes).trim() : undefined,
     });
 

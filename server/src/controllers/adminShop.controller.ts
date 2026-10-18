@@ -660,8 +660,8 @@ export async function listAdminInventory(req: AuthenticatedRequest, res: Respons
  */
 export async function adjustAdminInventory(req: AuthenticatedRequest, res: Response) {
   try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    const id = req.params.id || req.body.id || req.body.productId;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, error: 'Invalid product ID' });
     }
 

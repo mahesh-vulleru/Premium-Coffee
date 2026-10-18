@@ -3,9 +3,17 @@ import type { IProduct } from './Product.js';
 import type { IShippingAddress } from './User.js';
 
 export type OrderType = 'retail' | 'wholesale';
-export type OrderStatus = 'received' | 'processing' | 'roasting' | 'dispatched' | 'delivered' | 'cancelled';
+export type OrderStatus = 'received' | 'processing' | 'roasting' | 'packed' | 'dispatched' | 'delivered' | 'cancelled';
 export type PaymentMethod = 'net_terms' | 'bank_transfer' | 'credit_card' | 'cod';
-export type PaymentStatus = 'pending' | 'terms_approved' | 'paid' | 'failed';
+export type PaymentStatus = 'pending' | 'terms_approved' | 'paid' | 'failed' | 'refund_pending' | 'refunded';
+export type CancellationStatus = 'none' | 'requested' | 'approved' | 'rejected' | 'cancelled';
+
+export interface IOrderStatusHistoryItem {
+  status: OrderStatus;
+  timestamp: Date;
+  note?: string;
+  updatedBy?: string;
+}
 
 export interface IOrderItem {
   product: Types.ObjectId | IProduct;
@@ -40,6 +48,48 @@ export interface IOrder extends Document {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   notes?: string;
+
+  // Cancellation Workflow
+  cancellationStatus: CancellationStatus;
+  cancellationReason?: string;
+  cancellationRequestedAt?: Date;
+  cancellationDecidedAt?: Date;
+  cancellationDecisionReason?: string;
+  cancellationDecidedBy?: {
+    userId?: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  inventoryRestored: boolean;
+
+  // Returns & Refunds
+  returnStatus?: 'none' | 'requested' | 'approved' | 'rejected' | 'completed';
+  returnReason?: string;
+  returnRequestedAt?: Date;
+  returnDecidedAt?: Date;
+  returnDecisionReason?: string;
+  returnDecidedBy?: {
+    userId?: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  refundAmount?: number;
+  refundReason?: string;
+  refundTransactionId?: string;
+  refundedAt?: Date;
+  refundedBy?: {
+    userId?: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+
+  // Fulfillment & Tracking
+  trackingNumber?: string;
+  courierName?: string;
+  trackingUrl?: string;
+  estimatedDeliveryDate?: Date;
+  statusHistory: IOrderStatusHistoryItem[];
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -118,18 +168,77 @@ const OrderSchema = new Schema<IOrder>(
     paymentStatus: {
       type: String,
       required: true,
-      enum: ['pending', 'terms_approved', 'paid', 'failed'],
+      enum: ['pending', 'terms_approved', 'paid', 'failed', 'refund_pending', 'refunded'],
       default: 'pending',
       index: true,
     },
     orderStatus: {
       type: String,
       required: true,
-      enum: ['received', 'processing', 'roasting', 'dispatched', 'delivered', 'cancelled'],
+      enum: ['received', 'processing', 'roasting', 'packed', 'dispatched', 'delivered', 'cancelled'],
       default: 'received',
       index: true,
     },
     notes: { type: String, trim: true },
+
+    // Cancellation Workflow
+    cancellationStatus: {
+      type: String,
+      required: true,
+      enum: ['none', 'requested', 'approved', 'rejected', 'cancelled'],
+      default: 'none',
+      index: true,
+    },
+    cancellationReason: { type: String, trim: true },
+    cancellationRequestedAt: { type: Date },
+    cancellationDecidedAt: { type: Date },
+    cancellationDecisionReason: { type: String, trim: true },
+    cancellationDecidedBy: {
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      name: { type: String, trim: true },
+      email: { type: String, trim: true },
+    },
+    inventoryRestored: { type: Boolean, default: false },
+
+    // Returns & Refunds
+    returnStatus: {
+      type: String,
+      enum: ['none', 'requested', 'approved', 'rejected', 'completed'],
+      default: 'none',
+      index: true,
+    },
+    returnReason: { type: String, trim: true },
+    returnRequestedAt: { type: Date },
+    returnDecidedAt: { type: Date },
+    returnDecisionReason: { type: String, trim: true },
+    returnDecidedBy: {
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      name: { type: String, trim: true },
+      email: { type: String, trim: true },
+    },
+    refundAmount: { type: Number, min: 0 },
+    refundReason: { type: String, trim: true },
+    refundTransactionId: { type: String, trim: true },
+    refundedAt: { type: Date },
+    refundedBy: {
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      name: { type: String, trim: true },
+      email: { type: String, trim: true },
+    },
+
+    // Fulfillment & Tracking
+    trackingNumber: { type: String, trim: true },
+    courierName: { type: String, trim: true },
+    trackingUrl: { type: String, trim: true },
+    estimatedDeliveryDate: { type: Date },
+    statusHistory: [
+      {
+        status: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+        note: { type: String, trim: true },
+        updatedBy: { type: String, trim: true },
+      },
+    ],
   },
   {
     timestamps: true,

@@ -4,6 +4,7 @@ import {
   getCustomerOrderById,
   createRetailOrder,
   validateCoupon,
+  requestOrderCancellation,
 } from '../controllers/order.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -16,6 +17,7 @@ router.get('/', getCustomerOrders);
 router.get('/:id', getCustomerOrderById);
 router.post('/', createRetailOrder);
 router.post('/validate-coupon', validateCoupon);
+router.post('/:id/cancel', requestOrderCancellation);
 
 export default router;
 

@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { User, type IUser, type UserRole } from '../models/User.js';
+import { hasUserPermission, type Permission } from '../config/permissions.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: IUser;
@@ -52,6 +53,17 @@ export async function requireAuth(
       });
     }
 
+    // Check if staff account has been suspended or deactivated
+    if (
+      user.staffStatus &&
+      (user.staffStatus === 'suspended' || user.staffStatus === 'deactivated')
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: `Staff account is currently ${user.staffStatus}. Access revoked. Contact roastery administration.`,
+      });
+    }
+
     req.user = user;
     next();
   } catch (error: any) {
@@ -81,6 +93,36 @@ export function requireRole(...allowedRoles: UserRole[]) {
       return res.status(403).json({
         success: false,
         error: `Access forbidden. Requires one of roles: [${allowedRoles.join(', ')}].`,
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Granular permission check middleware.
+ * Allows access if the user has any of the specified permissions, or is an admin/owner.
+ */
+export function requirePermission(...requiredPermissions: (Permission | string)[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required.',
+      });
+    }
+
+    // Super Admin / Owner always has full access
+    if (req.user.role === 'admin' || req.user.staffRole === 'owner') {
+      return next();
+    }
+
+    const hasAny = requiredPermissions.some((perm) => hasUserPermission(req.user!, perm));
+    if (!hasAny) {
+      return res.status(403).json({
+        success: false,
+        error: `Access forbidden. Requires one of permissions: [${requiredPermissions.join(', ')}].`,
       });
     }
 

@@ -19,6 +19,8 @@
     "server:test-customer": "npm --prefix server run test:customer",
     "server:test-maintenance": "npm --prefix server run test:maintenance",
     "server:test-phase3": "npm --prefix server run test:phase3",
+    "server:test-cancellation": "npm --prefix server run test:cancellation",
+    "server:test-control-center": "npm --prefix server run test:control-center",
     "server:clean-tests": "npm --prefix server run clean:tests",
     "server:lint": "npm --prefix server run lint"
   },

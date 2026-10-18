@@ -16,6 +16,8 @@
     "test:customer": "tsx test-customer-dashboard.ts",
     "test:maintenance": "tsx test-shop-maintenance.ts",
     "test:phase3": "tsx test-shop-phase3.ts",
+    "test:cancellation": "tsx test-order-cancellation-workflow.ts",
+    "test:control-center": "tsx test-owner-control-center.ts",
     "clean:tests": "tsx src/scripts/cleanup-test-data.ts",
     "lint": "oxlint"
   },

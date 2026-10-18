@@ -1,8 +1,28 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-export type UserRole = 'customer' | 'wholesale' | 'admin';
+export type UserRole = 'customer' | 'wholesale' | 'admin' | 'staff';
 export type WholesaleStatus = 'pending' | 'approved' | 'rejected';
+
+export type StaffRole =
+  | 'owner'
+  | 'store_manager'
+  | 'finance_manager'
+  | 'roastery_staff'
+  | 'customer_support'
+  | 'wholesale_manager'
+  | 'marketing_manager'
+  | 'analyst';
+
+export type StaffStatus = 'pending' | 'active' | 'suspended' | 'deactivated';
+
+export interface IStaffApprovalRecord {
+  decidedBy: string;
+  decidedAt: Date;
+  action: 'approved' | 'rejected' | 'suspended' | 'reactivated' | 'role_changed';
+  reason?: string;
+  roleAssigned?: StaffRole;
+}
 
 export interface IShippingAddress {
   street: string;
@@ -31,6 +51,18 @@ export interface IUser extends Document {
   password: string;
   phone: string;
   role: UserRole;
+  staffRole?: StaffRole;
+  permissions?: string[];
+  staffStatus?: StaffStatus;
+  staffDepartment?: string;
+  staffApplicationNotes?: string;
+  staffInvitedBy?: {
+    userId?: mongoose.Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  approvalHistory?: IStaffApprovalRecord[];
+  lastLoginAt?: Date;
   shippingAddress?: IShippingAddress;
   wholesaleDetails?: IWholesaleDetails;
   adminSecurityBadge?: string;
@@ -75,6 +107,33 @@ const WholesaleDetailsSchema = new Schema<IWholesaleDetails>(
   { _id: false }
 );
 
+const StaffApprovalRecordSchema = new Schema<IStaffApprovalRecord>(
+  {
+    decidedBy: { type: String, required: true },
+    decidedAt: { type: Date, default: Date.now },
+    action: {
+      type: String,
+      required: true,
+      enum: ['approved', 'rejected', 'suspended', 'reactivated', 'role_changed'],
+    },
+    reason: { type: String, trim: true },
+    roleAssigned: {
+      type: String,
+      enum: [
+        'owner',
+        'store_manager',
+        'finance_manager',
+        'roastery_staff',
+        'customer_support',
+        'wholesale_manager',
+        'marketing_manager',
+        'analyst',
+      ],
+    },
+  },
+  { _id: false }
+);
+
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
@@ -91,10 +150,40 @@ const UserSchema = new Schema<IUser>(
     role: {
       type: String,
       required: true,
-      enum: ['customer', 'wholesale', 'admin'],
+      enum: ['customer', 'wholesale', 'admin', 'staff'],
       default: 'customer',
       index: true,
     },
+    staffRole: {
+      type: String,
+      enum: [
+        'owner',
+        'store_manager',
+        'finance_manager',
+        'roastery_staff',
+        'customer_support',
+        'wholesale_manager',
+        'marketing_manager',
+        'analyst',
+      ],
+      index: true,
+    },
+    permissions: [{ type: String, trim: true }],
+    staffStatus: {
+      type: String,
+      enum: ['pending', 'active', 'suspended', 'deactivated'],
+      default: 'active',
+      index: true,
+    },
+    staffDepartment: { type: String, trim: true },
+    staffApplicationNotes: { type: String, trim: true },
+    staffInvitedBy: {
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      name: { type: String, trim: true },
+      email: { type: String, trim: true },
+    },
+    approvalHistory: [StaffApprovalRecordSchema],
+    lastLoginAt: { type: Date },
     shippingAddress: { type: ShippingAddressSchema },
     wholesaleDetails: { type: WholesaleDetailsSchema },
     adminSecurityBadge: { type: String, trim: true },

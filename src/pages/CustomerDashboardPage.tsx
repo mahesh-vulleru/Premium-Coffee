@@ -27,6 +27,9 @@ import {
   Eye,
   X,
   Compass,
+  Flame,
+  Box,
+  Ban,
 } from 'lucide-react';
 
 type DashboardTab = 'overview' | 'profile' | 'orders' | 'wishlist' | 'subscriptions' | 'settings';
@@ -50,6 +53,11 @@ export const CustomerDashboardPage: React.FC = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+
+  // Order Cancellation State
+  const [cancellingOrder, setCancellingOrder] = useState<any | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   // Profile form state initialized from currentUser
   const [profileForm, setProfileForm] = useState(() => ({
@@ -110,6 +118,36 @@ export const CustomerDashboardPage: React.FC = () => {
       setIsOrdersLoading(false);
     }
   }, [currentUser]);
+
+  // Request order cancellation
+  const handleCancelOrderSubmit = async () => {
+    if (!cancellingOrder) return;
+    setIsSubmittingCancel(true);
+    try {
+      const res = await fetch(`/api/v1/orders/${cancellingOrder._id || cancellingOrder.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Cancellation request submitted to roastery team', 'success');
+        setCancellingOrder(null);
+        setCancelReason('');
+        fetchCustomerOrders();
+        if (selectedOrder && (selectedOrder._id === cancellingOrder._id || selectedOrder.id === cancellingOrder.id)) {
+          setSelectedOrder(data.order);
+        }
+      } else {
+        showToast(data.error || 'Failed to submit cancellation request', 'error');
+      }
+    } catch {
+      showToast('Error communicating with roastery server', 'error');
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
 
   // Load newsletter status
   const checkNewsletterStatus = useCallback(async () => {
@@ -1052,77 +1090,191 @@ export const CustomerDashboardPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {orders.map((ord) => (
-                      <div
-                        key={ord._id || ord.id}
-                        className="p-5 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] space-y-3 hover:border-terracotta-300 transition-colors"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#EBDCCE] pb-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-[#2B170E] text-sm">
-                                {ord.orderNumber}
-                              </span>
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                ord.orderStatus === 'delivered'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : ord.orderStatus === 'cancelled'
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
-                              }`}>
-                                {ord.orderStatus}
-                              </span>
-                              <span className="text-[10px] font-bold uppercase text-stone-500">
-                                {ord.paymentStatus}
-                              </span>
-                            </div>
-                            <span className="text-[11px] text-[#8A5934] mt-0.5 block">
-                              Placed on {new Date(ord.createdAt).toLocaleDateString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
+                    {orders.map((ord) => {
+                      const isEligibleForCancel =
+                        ['received', 'processing'].includes(ord.orderStatus) &&
+                        ord.cancellationStatus !== 'requested' &&
+                        ord.cancellationStatus !== 'cancelled' &&
+                        ord.orderStatus !== 'cancelled';
+                      const isCancelRequested = ord.cancellationStatus === 'requested';
 
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <span className="text-sm font-extrabold text-[#2B170E] block">
-                                {formatCurrency(ord.totalAmount)}
-                              </span>
-                              <span className="text-[10px] text-[#8A5934]">
-                                {ord.items?.length} {ord.items?.length === 1 ? 'item' : 'items'}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedOrder(ord)}
-                              className="px-3 py-1.5 rounded-xl bg-white hover:bg-white/80 border border-[#EBDCCE] text-xs font-bold text-[#3A1E0E] flex items-center gap-1"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Details</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Order Items Preview */}
-                        <div className="divide-y divide-[#EBDCCE]/60 text-xs">
-                          {ord.items?.map((item: any, idx: number) => (
-                            <div key={idx} className="py-2 flex items-center justify-between">
-                              <div>
-                                <span className="font-bold text-[#3A1E0E]">{item.productName}</span>
-                                <span className="text-[11px] text-[#8A5934] ml-2">
-                                  {item.quantity}x {item.size} • {item.grind}
+                      return (
+                        <div
+                          key={ord._id || ord.id}
+                          className="p-5 rounded-2xl bg-[#FAF6F0] border border-[#EBDCCE] space-y-3 hover:border-terracotta-300 transition-colors"
+                        >
+                          {/* Cancellation Status Banner */}
+                          {ord.cancellationStatus && ord.cancellationStatus !== 'none' && (
+                            <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                              ord.cancellationStatus === 'requested'
+                                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                                : ord.cancellationStatus === 'approved' || ord.cancellationStatus === 'cancelled'
+                                ? 'bg-rose-50 border-rose-300 text-rose-900'
+                                : 'bg-stone-100 border-stone-300 text-stone-800'
+                            }`}>
+                              <div className="flex items-center gap-1.5 font-medium">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  {ord.cancellationStatus === 'requested' && 'Cancellation requested — Roastery team reviewing'}
+                                  {ord.cancellationStatus === 'approved' && 'Cancellation approved — Refund pending'}
+                                  {ord.cancellationStatus === 'rejected' && `Cancellation declined: ${ord.cancellationDecisionReason || 'Fulfillment already underway'}`}
+                                  {ord.cancellationStatus === 'cancelled' && 'Order has been cancelled'}
                                 </span>
                               </div>
-                              <span className="font-semibold text-[#2B170E]">
-                                {formatCurrency(item.lineTotal)}
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/80">
+                                {ord.cancellationStatus}
                               </span>
                             </div>
-                          ))}
+                          )}
+
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#EBDCCE] pb-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-[#2B170E] text-sm">
+                                  {ord.orderNumber}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                  ord.orderStatus === 'delivered'
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : ord.orderStatus === 'cancelled'
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                }`}>
+                                  {ord.orderStatus}
+                                </span>
+                                <span className="text-[10px] font-bold uppercase text-stone-500">
+                                  {ord.paymentStatus}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-[#8A5934] mt-0.5 block">
+                                Placed on {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <span className="text-sm font-extrabold text-[#2B170E] block">
+                                  {formatCurrency(ord.totalAmount)}
+                                </span>
+                                <span className="text-[10px] text-[#8A5934]">
+                                  {ord.items?.length} {ord.items?.length === 1 ? 'item' : 'items'}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrder(ord)}
+                                className="px-3 py-1.5 rounded-xl bg-white hover:bg-white/80 border border-[#EBDCCE] text-xs font-bold text-[#3A1E0E] flex items-center gap-1 shadow-xs"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Details & Timeline</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Tracking Banner if in transit */}
+                          {ord.trackingNumber && (
+                            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <Truck className="w-4 h-4 text-blue-600 shrink-0" />
+                                <div>
+                                  <span className="font-bold">{ord.courierName || 'Courier'}: {ord.trackingNumber}</span>
+                                  {ord.estimatedDeliveryDate && (
+                                    <span className="text-[10px] text-blue-700 ml-2">Est. Delivery: {ord.estimatedDeliveryDate}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {ord.trackingUrl && (
+                                <a
+                                  href={ord.trackingUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2 py-1 rounded-lg bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 hover:bg-blue-700 transition-colors"
+                                >
+                                  <span>Track Package</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Order Items Preview */}
+                          <div className="divide-y divide-[#EBDCCE]/60 text-xs">
+                            {ord.items?.map((item: any, idx: number) => (
+                              <div key={idx} className="py-2 flex items-center justify-between">
+                                <div>
+                                  <span className="font-bold text-[#3A1E0E]">{item.productName}</span>
+                                  <span className="text-[11px] text-[#8A5934] ml-2">
+                                    {item.quantity}x {item.size} • {item.grind}
+                                  </span>
+                                </div>
+                                <span className="font-semibold text-[#2B170E]">
+                                  {formatCurrency(item.lineTotal)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Cancellation Controls & Ineligibility Messages */}
+                          <div className="pt-2 border-t border-[#EBDCCE]/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div>
+                              {isEligibleForCancel && (
+                                <span className="text-[11px] text-amber-800 font-medium">
+                                  Eligible for cancellation before roast scheduling begins.
+                                </span>
+                              )}
+                              {!isEligibleForCancel && ord.orderStatus === 'roasting' && (
+                                <span className="text-[11px] text-[#8A5934] italic">
+                                  Cancellation unavailable: Batch is actively roasting in the roastery drum.
+                                </span>
+                              )}
+                              {!isEligibleForCancel && ord.orderStatus === 'packed' && (
+                                <span className="text-[11px] text-[#8A5934] italic">
+                                  Cancellation unavailable: Coffee has been freshly sealed and packed for dispatch.
+                                </span>
+                              )}
+                              {!isEligibleForCancel && ord.orderStatus === 'dispatched' && (
+                                <span className="text-[11px] text-[#8A5934] italic">
+                                  Cancellation unavailable: Coffee shipment is in transit with courier.
+                                </span>
+                              )}
+                              {!isEligibleForCancel && ord.orderStatus === 'delivered' && (
+                                <span className="text-[11px] text-emerald-800 font-medium">
+                                  Delivered to doorstep. Reach out to roastery care for returns or support.
+                                </span>
+                              )}
+                              {ord.orderStatus === 'cancelled' && (
+                                <span className="text-[11px] text-rose-800 font-medium">
+                                  Order has been cancelled.
+                                </span>
+                              )}
+                              {isCancelRequested && (
+                                <span className="text-[11px] text-amber-800 font-medium">
+                                  Cancellation request pending admin review.
+                                </span>
+                              )}
+                            </div>
+
+                            {isEligibleForCancel && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCancellingOrder(ord);
+                                  setCancelReason('');
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                                <span>Cancel Order</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1454,7 +1606,13 @@ export const CustomerDashboardPage: React.FC = () => {
                   <h3 className="font-serif font-bold text-lg text-[#3A1E0E]">
                     Order {selectedOrder.orderNumber}
                   </h3>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    selectedOrder.orderStatus === 'delivered'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : selectedOrder.orderStatus === 'cancelled'
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                      : 'bg-amber-100 text-amber-800 border border-amber-300'
+                  }`}>
                     {selectedOrder.orderStatus}
                   </span>
                 </div>
@@ -1476,6 +1634,141 @@ export const CustomerDashboardPage: React.FC = () => {
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* Cancellation Status Banner */}
+              {selectedOrder.cancellationStatus && selectedOrder.cancellationStatus !== 'none' && (
+                <div className={`p-3 rounded-xl border space-y-1 ${
+                  selectedOrder.cancellationStatus === 'requested'
+                    ? 'bg-amber-50 border-amber-300 text-amber-900'
+                    : selectedOrder.cancellationStatus === 'approved' || selectedOrder.cancellationStatus === 'cancelled'
+                    ? 'bg-rose-50 border-rose-300 text-rose-900'
+                    : 'bg-stone-100 border-stone-300 text-stone-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-[10px]">
+                      Cancellation Status: {selectedOrder.cancellationStatus}
+                    </span>
+                    {selectedOrder.cancellationRequestedAt && (
+                      <span className="text-[10px] opacity-75">
+                        {new Date(selectedOrder.cancellationRequestedAt).toLocaleDateString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                  {selectedOrder.cancellationReason && (
+                    <p className="text-[11px]">Reason: "{selectedOrder.cancellationReason}"</p>
+                  )}
+                  {selectedOrder.cancellationDecisionReason && (
+                    <p className="text-[11px] font-medium">Roastery Decision Note: {selectedOrder.cancellationDecisionReason}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Order Status Timeline */}
+              <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#EBDCCE] space-y-3">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#8A5934] block">
+                  Roastery Fulfillment Timeline
+                </span>
+                {selectedOrder.orderStatus === 'cancelled' ? (
+                  <div className="flex items-center gap-3 p-3 bg-rose-100/70 rounded-xl border border-rose-200 text-rose-900">
+                    <Ban className="w-5 h-5 text-rose-600 shrink-0" />
+                    <div>
+                      <span className="font-bold text-xs block">Order Cancelled</span>
+                      <span className="text-[11px] text-rose-800">
+                        {selectedOrder.paymentStatus === 'refund_pending'
+                          ? 'Inventory restored to stock. Refund processing with accounts.'
+                          : 'Order was cancelled before roast production.'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-5 gap-1 text-center">
+                    {[
+                      { key: 'received', label: 'Received', icon: Clock },
+                      { key: 'processing', label: 'Processing', icon: Package },
+                      { key: 'roasting', label: 'Roasting', icon: Flame },
+                      { key: 'packed', label: 'Packed', icon: Box },
+                      { key: 'dispatched', label: 'Dispatched', icon: Truck },
+                    ].map((step) => {
+                      const stages = ['received', 'processing', 'roasting', 'packed', 'dispatched', 'delivered'];
+                      const currentIdx = stages.indexOf(selectedOrder.orderStatus);
+                      const stepIdx = stages.indexOf(step.key);
+                      const isComplete = currentIdx >= stepIdx;
+                      const isCurrent = currentIdx === stepIdx;
+                      const IconComp = step.icon;
+
+                      return (
+                        <div key={step.key} className="flex flex-col items-center">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                              isCurrent
+                                ? 'bg-terracotta-600 text-white ring-4 ring-terracotta-200 shadow-xs'
+                                : isComplete
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-stone-200 text-stone-400'
+                            }`}
+                          >
+                            {isComplete && !isCurrent ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <IconComp className="w-4 h-4" />
+                            )}
+                          </div>
+                          <span
+                            className={`text-[10px] mt-1.5 font-bold leading-tight ${
+                              isCurrent
+                                ? 'text-terracotta-700'
+                                : isComplete
+                                ? 'text-emerald-800'
+                                : 'text-stone-400'
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Courier & Tracking Details */}
+              {selectedOrder.trackingNumber && (
+                <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-blue-700" />
+                      <span className="font-bold text-xs">Tracking Information</span>
+                    </div>
+                    {selectedOrder.trackingUrl && (
+                      <a
+                        href={selectedOrder.trackingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-bold text-blue-700 hover:underline flex items-center gap-1"
+                      >
+                        <span>Live Tracking</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-blue-700 block">Courier</span>
+                      <span className="font-bold text-blue-950">{selectedOrder.courierName || 'Standard Roastery Express'}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 block">Tracking Number / AWB</span>
+                      <span className="font-mono font-bold text-blue-950">{selectedOrder.trackingNumber}</span>
+                    </div>
+                    {selectedOrder.estimatedDeliveryDate && (
+                      <div className="col-span-2">
+                        <span className="text-blue-700 block">Estimated Arrival</span>
+                        <span className="font-semibold text-blue-950">{selectedOrder.estimatedDeliveryDate}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Items List */}
               <div className="space-y-2">
                 <span className="text-[11px] font-bold text-[#8A5934] uppercase tracking-wider block">
@@ -1515,10 +1808,38 @@ export const CustomerDashboardPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm font-extrabold text-[#2B170E] pt-2 border-t border-[#EBDCCE]">
-                  <span>Total Paid:</span>
+                  <span>Total Amount:</span>
                   <span className="text-terracotta-700">{formatCurrency(selectedOrder.totalAmount)}</span>
                 </div>
               </div>
+
+              {/* Status History Timeline Log */}
+              {selectedOrder.statusHistory && selectedOrder.statusHistory.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-[#8A5934] uppercase tracking-wider block">
+                    Fulfillment Milestones
+                  </span>
+                  <div className="bg-[#FAF6F0] rounded-xl p-3 space-y-2 border border-[#EBDCCE]">
+                    {selectedOrder.statusHistory.map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-start gap-2 text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-terracotta-500 mt-1.5 shrink-0" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[#3A1E0E] uppercase">{item.status}</span>
+                            <span className="text-[10px] text-[#8A5934]">
+                              {new Date(item.timestamp).toLocaleString('en-IN', {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })}
+                            </span>
+                          </div>
+                          {item.note && <p className="text-[#6E4022] mt-0.5">{item.note}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Delivery Address */}
               {selectedOrder.shippingAddress && (
@@ -1539,13 +1860,89 @@ export const CustomerDashboardPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-[#EBDCCE]">
+            <div className="flex items-center justify-between pt-3 border-t border-[#EBDCCE]">
+              <div>
+                {['received', 'processing'].includes(selectedOrder.orderStatus) &&
+                  selectedOrder.cancellationStatus !== 'requested' &&
+                  selectedOrder.orderStatus !== 'cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancellingOrder(selectedOrder);
+                        setCancelReason('');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold transition-colors flex items-center gap-1.5"
+                    >
+                      <Ban className="w-3.5 h-3.5" />
+                      <span>Request Order Cancellation</span>
+                    </button>
+                  )}
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedOrder(null)}
                 className="px-5 py-2 rounded-xl bg-[#2B170E] hover:bg-[#3A1E0E] text-white text-xs font-bold transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Cancellation Request Confirmation Modal */}
+      {cancellingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="max-w-md w-full bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-[#EBDCCE]">
+            <div className="flex items-center justify-between border-b border-[#EBDCCE] pb-3">
+              <h3 className="font-serif font-bold text-lg text-[#3A1E0E] flex items-center gap-2">
+                <Ban className="w-5 h-5 text-rose-600" />
+                Cancel Order {cancellingOrder.orderNumber}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCancellingOrder(null)}
+                className="text-[#8A5934] hover:text-[#3A1E0E] p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-[#532D16]">
+              <p className="leading-relaxed">
+                Orders can be cancelled before roast production begins. Once submitted, our roastery team will review your cancellation request and halt batch scheduling.
+              </p>
+
+              <div>
+                <label className="text-xs font-bold text-[#3A1E0E] block mb-1">
+                  Reason for Cancellation (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g., Ordered incorrect grind size, need to update delivery address, duplicate order..."
+                  className="w-full p-2.5 rounded-xl bg-[#FAF6F0] border border-[#EBDCCE] text-xs text-[#2B170E] focus:outline-none focus:ring-1 focus:ring-terracotta-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-[#EBDCCE]">
+              <button
+                type="button"
+                onClick={() => setCancellingOrder(null)}
+                className="flex-1 py-2 rounded-xl bg-[#FAF6F0] hover:bg-[#F5ECE1] text-[#3A1E0E] text-xs font-bold border border-[#EBDCCE]"
+              >
+                Nevermind, Keep Order
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingCancel}
+                onClick={handleCancelOrderSubmit}
+                className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
+              >
+                {isSubmittingCancel ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+                <span>Confirm Cancellation</span>
               </button>
             </div>
           </div>

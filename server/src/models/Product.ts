@@ -47,6 +47,7 @@ export interface IProduct extends Document {
   promotionEndDate?: Date;
   availablePackSizes?: string[];
   grindOptions?: string[];
+  costPrice?: number; // Roastery direct bean & packaging unit cost in INR
   brewGuide?: IBrewGuide;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +74,7 @@ const ProductSchema = new Schema<IProduct>(
       index: true,
     },
     price: { type: Number, required: true, min: 0 },
+    costPrice: { type: Number, min: 0 },
     originalPrice: { type: Number, min: 0 },
     rating: { type: Number, default: 5.0, min: 1, max: 5 },
     reviewsCount: { type: Number, default: 0, min: 0 },

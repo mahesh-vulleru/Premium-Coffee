@@ -26,12 +26,19 @@ import { formatCurrency } from '../utils/pricing';
 
 export interface ShopMaintenanceProps {
   onNotify: (msg: string) => void;
+  controlledTab?: 'products' | 'pricing' | 'inventory' | 'promotions' | 'categories' | 'content' | 'history';
 }
 
-export const ShopMaintenanceSection: React.FC<ShopMaintenanceProps> = ({ onNotify }) => {
+export const ShopMaintenanceSection: React.FC<ShopMaintenanceProps> = ({ onNotify, controlledTab }) => {
   const [activeTab, setActiveTab] = useState<
     'products' | 'pricing' | 'inventory' | 'promotions' | 'categories' | 'content' | 'history'
-  >('products');
+  >(controlledTab || 'products');
+
+  useEffect(() => {
+    if (controlledTab && controlledTab !== activeTab) {
+      setActiveTab(controlledTab);
+    }
+  }, [controlledTab, activeTab]);
 
   // ==========================================
   // 1. PRODUCTS STATE

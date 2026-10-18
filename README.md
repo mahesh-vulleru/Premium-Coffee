@@ -4,7 +4,7 @@
 
 [![Lint Status](https://img.shields.io/badge/Oxlint-Passing-success)](https://oxc.rs)
 [![Build Status](https://img.shields.io/badge/Vite%20Build-Passing-success)](https://vitejs.dev)
-[![Backend Tests](https://img.shields.io/badge/All%20Suites-71%2F71%20Passed-success)](#testing--quality-verification)
+[![Backend Tests](https://img.shields.io/badge/All%20Suites-97%2F97%20Passed-success)](#testing--quality-verification)
 [![Currency](https://img.shields.io/badge/Currency-INR%20(%E2%82%B9)-amber)](#indian-rupee-inr-pricing--currency-standard)
 
 ---
@@ -22,6 +22,7 @@
   - [6. Wholesale B2B Partner Portal](#6-wholesale-b2b-partner-portal)
   - [7. Administrator Portal & Security Controls](#7-administrator-portal--security-controls)
   - [8. Hybrid Cart & Wishlist Synchronization](#8-hybrid-cart--wishlist-synchronization)
+  - [9. Owner Control Center & Staff Governance](#9-owner-control-center--staff-governance)
 - [Project Directory Structure](#project-directory-structure)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -136,11 +137,18 @@
 - **Warehouse Stockroom View:** Real-time stock visibility with low-stock threshold alerting and out-of-stock badges.
 - **Mandatory Stock Adjustment Reasons:** Every inventory change records delta, before/after values, and a mandatory operational reason ($\ge 3$ characters).
 - **Negative Stock & Oversell Protection:** Clamps decrements to prevent negative inventory balances.
-- **Immutable Movement Audit Trail:** Historical log tracking every stock adjustment, retail purchase, and wholesale order with actor accountability.
-
 ### 9. Hybrid Cart & Wishlist Synchronization
 - **Client Cache:** Guest state is immediately saved to `localStorage` for offline persistence and instant UI updates.
 - **Cloud Backend Sync:** Upon login or registration, client items merge with the user's MongoDB `Cart` and `Wishlist` records via authenticated `/api/v1/cart` and `/api/v1/wishlist` endpoints.
+
+### 10. Owner Control Center & Enterprise Governance (`/dashboard/admin`)
+- **20-Module Unified Command Center:** 20 modular operational panels spanning Overview, Staff Approvals, Staff Directory, Roles & Permissions, Retail Orders, Wholesale Orders, Cancellations & Returns, Fulfillment & Tracking, Products & Catalogue, Inventory & Roastery, Retail Pricing, Promotions & Coupons, Categories, Storefront Content, Finance & Payments, Expenses & Costs, Reports & Analytics, Audit Logs, Notifications, and Business Settings.
+- **8-Tier Role Hierarchy & 22 Granular Permissions:** Full RBAC matrix spanning `owner`, `store_manager`, `finance_manager`, `roastery_staff`, `customer_support`, `wholesale_manager`, `marketing_manager`, and `analyst` enforced at route level via `requirePermission(...)`.
+- **Staff Onboarding & Governance:** Pending staff applications, approval/rejection workflows, role reassignments, status toggling (`active`, `suspended`, `deactivated`), single-use expiring invitation tokens, and last active owner demotion protection. Immediate session termination in `requireAuth` for suspended accounts.
+- **Order Returns & Authoritative Refunds:** Decision modal for customer return requests with reason recording, automated stock restock via `InventoryLog`, gateway transaction ID tracking for refunds, and full audit logging.
+- **Financial & Expense Management:** Database-backed `Expense` tracking across 8 categories (raw coffee, packaging, equipment, utilities, logistics, marketing, payroll, other) with payment methods, vendor, invoice numbers, and net profit calculations.
+- **Comprehensive Reports & CSV Exports:** Live time-series analytics and 1-click streaming CSV exports for sales (`orders.csv`), stockroom (`inventory.csv`), expenditures (`expenses.csv`), cancellations (`cancellations.csv`), and governance trail (`audit_logs.csv`).
+- **Singleton Business Settings & Notifications:** Roastery GSTIN, legal entity, shipping thresholds (₹999 free shipping, ₹99 standard fee), wholesale MOQ (5kg), invoice prefixes (`FD`, `WS`), and roaster capacity.
 
 ---
 
@@ -255,7 +263,7 @@ npm run dev
 
 ## Testing & Quality Verification
 
-The project includes strict linting, zero-error type checks, and 50 automated backend verification tests across 4 complete suites:
+The project includes strict linting, zero-error type checks, and 83 automated backend verification tests across 7 complete suites:
 
 ```bash
 # 1. Run ultra-fast Oxlint check (Zero warnings, Zero errors)
@@ -284,20 +292,25 @@ npm run server:test-maintenance
 # 8. Shop Maintenance: Pricing, Promotions, Categories & Content (10/10 Passed)
 npm run server:test-phase3
 
-# 9. Safe Development Test Data Cleanup (preserves genuine accounts)
+# 9. Order Workflow & Cancellation Suite (12/12 Passed)
+npm run server:test-cancellation
+
+# 10. Safe Development Test Data Cleanup (preserves genuine accounts)
 npm run server:clean-tests
 ```
 
-### Summary of Automated Test Suites (71/71 Passed)
+### Summary of Automated Test Suites (97/97 Passed)
 
 | Suite | Command | Tests | Coverage Highlights |
-| :--- | :--- | :---: | :--- |
+| :--- | :--- | :--- | :--- |
 | **Security & RBAC** | `npm run server:test` | **11/11** | Admin provisioning, bcrypt salts, token rejection (403), credential protection, logout cookie clearance. |
 | **Auth & Isolation** | `npm run server:test-isolation` | **14/14** | Open redirect prevention, cross-account cart & wishlist isolation, inventory stock clamping, admin approvals. |
 | **Wholesale B2B** | `npm run server:test-wholesale` | **15/15** | Commercial catalogue, 5kg MOQ enforcement, volume tiers (30%–40%), tax invoices, reorder engine, admin rejection with reasons. |
 | **Customer Commerce** | `npm run server:test-customer` | **10/10** | Default India country, address validation, authoritative pricing, cart isolation, retail checkout, stock deduction, promo code (`FIREDUP15`), order privacy boundary, newsletter lifecycle. |
 | **Shop Maintenance (P2)** | `npm run server:test-maintenance` | **11/11** | Product CRUD & unique slugs, unpublished/archived storefront protection, warehouse stock KPIs, mandatory stock adjustment reasons ($\ge 3$ chars), negative stock rejection, inventory movement logs, audit logs. |
 | **Shop Maintenance (P3)** | `npm run server:test-phase3` | **10/10** | Retail pricing validations, date windows, authoritative effective price calculations, order snapshot immutability, promotion engine & coupon validation, category CRUD & safe archival protection, dynamic storefront content & publication toggling, full audit logging. |
+| **Order Workflow & Cancellation** | `npm run server:test-cancellation` | **12/12** | Early-stage cancellation eligibility (`received`, `processing`), duplicate request prevention, cross-account protection, admin approve/reject with reason, exactly-once stock restoration, `refund_pending` payment transition, staff fulfillment advancement (`roasting`, `packed`, `dispatched` with tracking), cancellation blocking in roasting stage, staff 403 boundary enforcement. |
+| **Owner Control Center** | `npm run server:test-control-center` | **14/14** | 8 roles, 22 permissions, staff onboarding & approval queue, role & permission assignments, status toggles (`active`, `suspended`, `deactivated`), last owner protection, return decisions with restock, authoritative order refunds, expenses CRUD, CSV exports (`sales`, `inventory`, `expenses`, `cancellations`, `audit_logs`), singleton business settings & notifications. |
 
 ---
 
@@ -311,9 +324,10 @@ All backend endpoints are prefixed with `/api/v1`:
 | `POST` | `/login` | Public | Authenticate user & issue signed HttpOnly cookie |
 | `POST` | `/register/customer` | Public | Register standard customer account (India default) |
 | `POST` | `/register/wholesale` | Public | Submit commercial wholesale application (pending review) |
-| `POST` | `/register/admin` | Secret Token | Register staff administrator with invitation secret |
+| `POST` | `/register/staff-application` | Public | Submit staff employment application (defaults to `pending`) |
+| `POST` | `/register/admin` | Secret Token | Register staff administrator with single-use invitation secret |
 | `POST` | `/logout` | Authenticated | Invalidate session & clear cookies |
-| `GET` | `/me` | Authenticated | Retrieve authenticated user profile |
+| `GET` | `/me` | Authenticated | Retrieve authenticated user profile with effective permissions |
 | `PUT` | `/profile` | Authenticated | Update user name, phone, and delivery address |
 
 ### Cart Management (`/api/v1/cart`)
@@ -340,7 +354,15 @@ All backend endpoints are prefixed with `/api/v1`:
 | `GET` | `/` | Authenticated | List authenticated customer's order history |
 | `GET` | `/:id` | Authenticated | Retrieve single order details with ownership boundary |
 | `POST` | `/` | Authenticated | Place retail order with locked price snapshots & stock deduction |
+| `POST` | `/:id/cancel` | Authenticated (Customer) | Request order cancellation with optional reason (eligible during `received` / `processing`) |
 | `POST` | `/validate-coupon` | Authenticated | Authoritatively validate promo coupon against cart subtotal |
+
+### Roastery Staff Fulfillment (`/api/v1/staff`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/orders` | Staff / Admin | Active fulfillment queue with workflow stage filtering (`received`, `processing`, `roasting`, `packed`, `dispatched`) |
+| `PATCH` | `/fulfillment/:orderId/status` | Staff / Admin | Advance fulfillment stage with operational note and tracking details (`courierName`, `trackingNumber`, `trackingUrl`) |
+| `GET` | `/metrics` | Staff / Admin | Roastery floor metrics (pending fulfillment, active roasts, today's dispatches) |
 
 ### Category Taxonomy (`/api/v1/categories`)
 | Method | Endpoint | Access | Description |
@@ -361,36 +383,57 @@ All backend endpoints are prefixed with `/api/v1`:
 | `GET` | `/orders/:id/invoice` | Approved Wholesale | Download GST-compliant tax invoice |
 | `POST` | `/orders/:id/reorder` | Approved Wholesale | Populate cart from previous bulk order |
 
-### Administration (`/api/v1/admin`)
-| Method | Endpoint | Access | Description |
+### Owner Control Center & Administration (`/api/v1/admin`)
+| Method | Endpoint | Access / Permission | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/metrics` | Admin only | Database KPIs: users, orders, inventory units, low-stock SKUs |
-| `GET` | `/products` | Admin only | Full product catalogue with search, pagination, and status filters |
-| `POST` | `/products` | Admin only | Create new specialty roast with auto-slug or custom unique slug |
-| `PUT`/`PATCH` | `/products/:id` | Admin only | Update roast details, pricing, threshold, notes, or tags |
-| `PATCH` | `/products/:id/publication` | Admin only | Toggle publication status (`isPublished`) |
-| `DELETE` | `/products/:id` | Admin only | Safe archival (`isArchived: true, isPublished: false`) |
-| `GET` | `/inventory` | Admin only | Real-time warehouse stockroom with low-stock badges & metrics |
-| `POST` | `/inventory/adjust` | Admin only | Atomic stock adjustment with mandatory reason ($\ge 3$ chars) |
-| `GET` | `/inventory/logs` | Admin only | Immutable inventory movement history with actor & reason trail |
-| `GET` | `/pricing` | Admin only | Retail pricing overview with active sale status |
-| `PUT`/`PATCH` | `/pricing/:id` | Admin only | Update retail price, sale price, and date windows with audit logging |
-| `GET` | `/promotions` | Admin only | List all database coupon promotions and usage counters |
-| `POST` | `/promotions` | Admin only | Create percentage/fixed discount coupon with usage & order limits |
-| `PUT`/`PATCH` | `/promotions/:id` | Admin only | Update promotion properties |
-| `PATCH` | `/promotions/:id/status` | Admin only | Toggle promotion active/inactive status |
-| `DELETE` | `/promotions/:id` | Admin only | Archive promotion code |
-| `GET` | `/categories` | Admin only | List all categories with active product reference counts |
-| `POST` | `/categories` | Admin only | Create category with unique slug and display ordering |
-| `PUT`/`PATCH` | `/categories/:id` | Admin only | Update category name, description, icon, or slug |
-| `PATCH` | `/categories/:id/status` | Admin only | Toggle category active status |
-| `DELETE` | `/categories/:id` | Admin only | Safe archival (strictly blocks if active products reference category) |
-| `GET` | `/content` | Admin only | List all storefront content items |
-| `POST` | `/content` | Admin only | Create announcement bar or promo card with sanitized URLs |
-| `PUT`/`PATCH` | `/content/:id` | Admin only | Update storefront content item |
-| `PATCH` | `/content/:id/publication` | Admin only | Toggle publication status |
-| `DELETE` | `/content/:id` | Admin only | Delete storefront content item |
-| `GET` | `/audit-logs` | Admin only | Comprehensive administrative audit trail |
+| `GET` | `/metrics` | `view_analytics` | Database KPIs: users, orders, inventory units, low-stock SKUs |
+| `GET` | `/orders` | `view_orders` | Full order management across direct retail and wholesale B2B |
+| `PATCH` | `/orders/:orderId/status` | `manage_fulfillment` | Update order status and courier tracking |
+| `POST` | `/orders/:orderId/cancellation` | `manage_orders` | Authoritatively approve/reject cancellation requests; restores stock |
+| `POST` | `/orders/:orderId/returns` | `manage_orders` | Approve or reject order return requests with restock |
+| `POST` | `/orders/:orderId/refund` | `manage_finances` | Process authoritative refund with gateway transaction ID |
+| `GET` | `/staff/applications` | `manage_staff` | List pending staff onboarding applications |
+| `PATCH` | `/staff/applications/:id/decision`| `manage_staff` | Approve or reject staff application with role & department |
+| `GET` | `/staff` | `view_staff` | Staff directory with roles, departments, statuses, and permissions |
+| `PATCH` | `/staff/:id/role-permissions` | `manage_roles` | Reassign staff role and customized granular permissions (last owner protected) |
+| `PATCH` | `/staff/:id/status` | `manage_staff` | Update staff status (`active`, `suspended`, `deactivated`) |
+| `POST` | `/staff/invitations` | `manage_staff` | Generate single-use expiring invitation token |
+| `GET` | `/finance/summary` | `view_finances` | Financial KPIs (gross sales, refunds, expenses, net profit, margins) |
+| `GET` | `/finance/expenses` | `view_finances` | List business expenses with category, vendor, and date filters |
+| `POST` | `/finance/expenses` | `manage_finances` | Record operational expense across 8 categories |
+| `DELETE` | `/finance/expenses/:id` | `manage_finances` | Delete recorded expense |
+| `GET` | `/reports/analytics` | `view_reports` | Time-series metrics (revenue, order counts, status breakdowns) |
+| `GET` | `/reports/export/csv` | `export_data` | Stream sanitized CSV exports (`sales`, `inventory`, `expenses`, `cancellations`, `audit_logs`) |
+| `GET` | `/settings` | `view_settings` | Retrieve singleton business, tax, and roastery settings |
+| `PATCH` | `/settings` | `manage_settings` | Update company details, GSTIN, shipping thresholds, and MOQ |
+| `GET` | `/notifications` | `view_notifications`| Retrieve high-priority roastery alerts and notifications |
+| `GET` | `/products` | `view_products` | Full product catalogue with search, pagination, and status filters |
+| `POST` | `/products` | `manage_products` | Create new specialty roast with auto-slug or custom unique slug |
+| `PUT`/`PATCH` | `/products/:id` | `manage_products` | Update roast details, pricing, threshold, notes, or tags |
+| `PATCH` | `/products/:id/publication` | `manage_products` | Toggle publication status (`isPublished`) |
+| `DELETE` | `/products/:id` | `manage_products` | Safe archival (`isArchived: true, isPublished: false`) |
+| `GET` | `/inventory` | `view_inventory` | Real-time warehouse stockroom with low-stock badges & metrics |
+| `POST` | `/inventory/adjust` | `manage_inventory` | Atomic stock adjustment with mandatory reason ($\ge 3$ chars) |
+| `GET` | `/inventory/logs` | `view_inventory` | Immutable inventory movement history with actor & reason trail |
+| `GET` | `/pricing` | `manage_pricing` | Retail pricing overview with active sale status |
+| `PUT`/`PATCH` | `/pricing/:id` | `manage_pricing` | Update retail price, sale price, and date windows with audit logging |
+| `GET` | `/promotions` | `manage_promotions`| List all database coupon promotions and usage counters |
+| `POST` | `/promotions` | `manage_promotions`| Create percentage/fixed discount coupon with usage & order limits |
+| `PUT`/`PATCH` | `/promotions/:id` | `manage_promotions`| Update promotion properties |
+| `PATCH` | `/promotions/:id/status` | `manage_promotions`| Toggle promotion active/inactive status |
+| `DELETE` | `/promotions/:id` | `manage_promotions`| Archive promotion code |
+| `GET` | `/categories` | `manage_categories`| List all categories with active product reference counts |
+| `POST` | `/categories` | `manage_categories`| Create category with unique slug and display ordering |
+| `PUT`/`PATCH` | `/categories/:id` | `manage_categories`| Update category name, description, icon, or slug |
+| `PATCH` | `/categories/:id/status` | `manage_categories`| Toggle category active status |
+| `DELETE` | `/categories/:id` | `manage_categories`| Safe archival (strictly blocks if active products reference category) |
+| `GET` | `/content` | `manage_content` | List all storefront content items |
+| `POST` | `/content` | `manage_content` | Create announcement bar or promo card with sanitized URLs |
+| `PUT`/`PATCH` | `/content/:id` | `manage_content` | Update storefront content item |
+| `PATCH` | `/content/:id/publication` | `manage_content` | Toggle publication status |
+| `DELETE` | `/content/:id` | `manage_content` | Delete storefront content item |
+| `GET` | `/audit-logs` | `view_audit_logs` | Comprehensive administrative audit trail |
+
 
 ### Health Check (`/api/v1/health`)
 | Method | Endpoint | Access | Description |

@@ -263,6 +263,16 @@ export async function createRetailOrder(req: AuthenticatedRequest, res: Response
             : 'credit_card',
       paymentStatus: 'paid', // retail mock checkout succeeds
       orderStatus: 'received',
+      cancellationStatus: 'none',
+      inventoryRestored: false,
+      statusHistory: [
+        {
+          status: 'received',
+          timestamp: new Date(),
+          note: 'Order confirmed and scheduled for roastery queue.',
+          updatedBy: req.user.name || 'Customer',
+        },
+      ],
       notes: notes ? String(notes).trim() : undefined,
     });
 
@@ -391,6 +401,101 @@ export async function validateCoupon(req: AuthenticatedRequest, res: Response) {
   } catch (error) {
     console.error('[Order Controller] Error validating coupon:', error);
     return res.status(500).json({ success: false, error: 'Failed to validate coupon' });
+  }
+}
+
+/**
+ * POST /api/v1/orders/:id/cancel
+ * Customer submits a cancellation request for their own order with optional reason
+ */
+export async function requestOrderCancellation(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid order identifier' });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Customer can only cancel their own orders (strict multi-tenant data isolation)
+    if (order.userId.toString() !== req.user._id.toString()) {
+      return res.status(404).json({ success: false, error: 'Order not found or unauthorized' });
+    }
+
+    // Ineligible states check
+    if (order.orderStatus === 'cancelled') {
+      return res.status(400).json({ success: false, error: 'Order is already cancelled' });
+    }
+
+    if (order.orderStatus === 'delivered') {
+      return res.status(400).json({
+        success: false,
+        error: 'Delivered orders cannot be cancelled. Please contact customer support for returns.',
+      });
+    }
+
+    if (order.orderStatus === 'dispatched') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cancellation unavailable: This order has already been dispatched with our courier partner.',
+      });
+    }
+
+    if (order.orderStatus === 'roasting' || order.orderStatus === 'packed') {
+      return res.status(400).json({
+        success: false,
+        error: `Cancellation unavailable: Your batch is currently in the ${order.orderStatus} stage at the roastery.`,
+      });
+    }
+
+    // Prevent duplicate cancellation requests
+    if (order.cancellationStatus === 'requested') {
+      return res.status(400).json({
+        success: false,
+        error: 'A cancellation request for this order is already pending administrative review.',
+      });
+    }
+
+    const cleanReason = reason && typeof reason === 'string' ? reason.trim() : 'Customer requested cancellation';
+
+    order.cancellationStatus = 'requested';
+    order.cancellationReason = cleanReason;
+    order.cancellationRequestedAt = new Date();
+
+    if (!Array.isArray(order.statusHistory)) {
+      order.statusHistory = [];
+    }
+
+    order.statusHistory.push({
+      status: order.orderStatus,
+      timestamp: new Date(),
+      note: `Cancellation requested: "${cleanReason}"`,
+      updatedBy: req.user.name || 'Customer',
+    });
+
+    await order.save();
+
+    console.log(
+      `[Order Cancellation] Request submitted for order ${order.orderNumber} by ${req.user.email}: "${cleanReason}"`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cancellation request submitted successfully. Our roastery team will review your request.',
+      order: order.toJSON(),
+    });
+  } catch (error: any) {
+    console.error('[Order Controller] Error requesting cancellation:', error);
+    return res.status(500).json({ success: false, error: 'Failed to process cancellation request' });
   }
 }
 

@@ -13,6 +13,7 @@ import orderRoutes from './routes/order.routes.js';
 import newsletterRoutes from './routes/newsletter.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import contentRoutes from './routes/content.routes.js';
+import staffRoutes from './routes/staff.routes.js';
 import {
   notFoundHandler,
   globalErrorHandler,
@@ -49,6 +50,7 @@ export function createApp(): Express {
   app.use('/api/v1/wishlist', wishlistRoutes);
   app.use('/api/v1/wholesale', wholesaleRoutes);
   app.use('/api/v1/orders', orderRoutes);
+  app.use('/api/v1/staff', staffRoutes);
   app.use('/api/v1/newsletter', newsletterRoutes);
 
   // Fallback 404 & Centralized Error Handlers

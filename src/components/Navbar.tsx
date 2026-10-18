@@ -14,6 +14,7 @@ import {
   Clock,
   MapPin,
   User,
+  Package,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/useAuth';
@@ -375,6 +376,15 @@ export const Navbar: React.FC = () => {
                       Open Admin Dashboard
                     </Link>
                   )}
+                  {currentUser.role === 'staff' && (
+                    <Link
+                      to="/dashboard/staff"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="p-2 bg-amber-800 text-white rounded-lg text-xs font-bold text-center"
+                    >
+                      Open Roastery Staff Queue
+                    </Link>
+                  )}
                   {currentUser.role === 'wholesale' && (
                     <Link
                       to="/dashboard/wholesale"
@@ -589,6 +599,17 @@ export const Navbar: React.FC = () => {
                 >
                   <ShieldAlert className="w-4 h-4 text-amber-400" />
                   <span>Admin Operations Command</span>
+                </Link>
+              )}
+
+              {currentUser.role === 'staff' && (
+                <Link
+                  to="/dashboard/staff"
+                  onClick={() => setShowAccountModal(false)}
+                  className="w-full py-3 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
+                >
+                  <Package className="w-4 h-4 text-amber-300" />
+                  <span>Roastery Staff Queue</span>
                 </Link>
               )}
 

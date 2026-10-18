@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD) — Firedup Specialty Coffee
 
 **Project:** Firedup Specialty Coffee Full-Stack E-Commerce Platform  
-**Version:** 2.5.0 (Phase 3 Complete)  
+**Version:** 3.0.0 (Owner Control Center Complete)  
 **Target Platform:** Web (Desktop, Tablet, Mobile)  
 **Currency Standard:** Indian Rupee (INR / ₹)  
 **Status:** Active Production-Ready Development  
@@ -335,11 +335,65 @@ interface IStorefrontContent {
 }
 ```
 
+### 5.12 Expense Model (`Expense.ts`)
+```typescript
+interface IExpense {
+  title: string;
+  category: 'raw_coffee' | 'packaging' | 'roastery_equipment' | 'utilities' | 'logistics' | 'marketing' | 'payroll' | 'other';
+  amount: number;
+  paymentMethod: 'bank_transfer' | 'upi' | 'credit_card' | 'debit_card' | 'cash';
+  expenseDate: Date;
+  vendor?: string;
+  invoiceNumber?: string;
+  notes?: string;
+  recordedBy: {
+    userId?: Types.ObjectId;
+    name: string;
+    email: string;
+    role: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### 5.13 Business Settings Model (`BusinessSettings.ts`)
+```typescript
+interface IBusinessSettings {
+  singletonKey: 'default';
+  businessName: string;
+  legalEntityName: string;
+  gstin: string;
+  supportEmail: string;
+  supportPhone: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+  freeShippingThreshold: number; // ₹999
+  standardShippingFee: number;   // ₹99
+  wholesaleMoqKg: number;        // 5kg
+  invoicePrefixRetail: string;   // "FD"
+  invoicePrefixWholesale: string;// "WS"
+  roasterCapacityKgPerHour: number;
+  updatedBy?: {
+    userId?: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
 ---
 
 ## 6. Security, Isolation & Integrity Standards
 
-1. **Role-Based Access Control (RBAC):** Backend route middleware strictly enforces access permissions (`requireAuth`, `requireRole('admin')`, `requireApprovedWholesale`).
+1. **Role-Based Access Control (RBAC):** Backend route middleware strictly enforces access permissions (`requireAuth`, `requireRole('admin')`, `requireApprovedWholesale`, and `requirePermission(...permissions)`).
 2. **Authoritative Server Pricing:** Cart totals, discounts, and order amounts are calculated server-side from database prices, ignoring arbitrary client values.
 3. **Effective Pricing & Date Windows:** Products with active `promotionPrice` inside valid date ranges calculate `effectivePrice` dynamically. When promotions expire or dates elapse, the price automatically reverts without cron jobs.
 4. **Order Price Snapshot Immutability:** When an order is placed, line item prices (`unitPrice`, `lineTotal`) are permanently frozen in the order document. Future retail price or promotion adjustments never mutate past orders.
@@ -349,12 +403,18 @@ interface IStorefrontContent {
 8. **Mandatory Inventory Movement Justifications:** Every stock adjustment must record previous/new stock, quantity delta, and an operational reason ($\ge 3$ characters). Negative inventory adjustments and overselling are strictly rejected.
 9. **Storefront Public Isolation:** Unpublished or archived roasts and content items are automatically excluded from public storefront queries (`$ne: true`), cart addition, and checkout.
 10. **Safe Data Cleanup:** `cleanupTestData()` safely clears test fixtures matching automated patterns while preserving genuine user records.
+11. **Order Cancellation & Inventory Restoration Guarantees:** Customers may only submit cancellation requests during early stages (`received`, `processing`). Once an order advances to roasting or packaging, self-service cancellation is strictly blocked. When an administrator approves a cancellation, the exact ordered quantities are restored to available inventory (`stockAvailable`), an `InventoryLog` entry is generated with reason, and the payment status transitions to `refund_pending` without prematurely marking `refunded`. Re-opening or double-cancellations are idempotently prevented via `inventoryRestored: boolean`.
+12. **Role Separation in Fulfillment:** Dedicated roastery staff accounts (`role: 'staff'`) access `/dashboard/staff` to advance orders along the production pipeline (`received` -> `processing` -> `roasting` -> `packed` -> `dispatched` -> `delivered`), attach courier tracking information, and monitor live batch volumes. Roastery staff are strictly forbidden (403 Forbidden) from cancelling orders, approving cancellation requests, or triggering payment refunds.
+13. **Owner Control Center Multi-Role Hierarchy:** Enforces 8 distinct roles (`owner`, `store_manager`, `finance_manager`, `roastery_staff`, `customer_support`, `wholesale_manager`, `marketing_manager`, `analyst`) with 22 granular permissions mapped through `requirePermission(...)`.
+14. **Last Active Owner Protection:** The system strictly prohibits demoting, suspending, or deactivating the last remaining active owner in the business (`400 Bad Request`). Self-suspension is strictly blocked (`403 Forbidden`).
+15. **Immediate Session Termination for Suspended Staff:** Every request through `requireAuth` verifies `staffStatus !== 'suspended' && staffStatus !== 'deactivated'`. Any status alteration instantly revokes active access without waiting for JWT token expiration.
+16. **Financial Integrity & Authoritative Refunds:** Order refunds are recorded against confirmed gateway transaction IDs, adjusting `refundAmount` without exceeding order totals. Return decisions trigger restock in `InventoryLog` with actor attribution.
 
 ---
 
 ## 7. Verification & Quality Assurance Suite
 
-The system maintains 100% passing automated test coverage across six distinct test suites (**71/71 tests passing**):
+The system maintains 100% passing automated test coverage across eight distinct test suites (**97/97 tests passing**):
 
 ```bash
 # 1. Frontend & Backend Linting
@@ -372,7 +432,10 @@ npm run server:test-wholesale   # 15/15 Wholesale B2B Portal
 npm run server:test-customer    # 10/10 Customer Dashboard & Commerce
 npm run server:test-maintenance # 11/11 Shop Maintenance (Product & Inventory)
 npm run server:test-phase3      # 10/10 Shop Maintenance (Pricing, Promotions, Categories & Content)
+npm run server:test-cancellation # 12/12 Order Workflow & Cancellation Integrity
+npm run server:test-control-center # 14/14 Owner Control Center (Roles, Permissions, Staff, Finance, CSV Reports, Settings)
 ```
+
 
 ---
 
